@@ -26,7 +26,4 @@
 
 import sys
 
-if 'itpii' in sys.modules:
-    __all__ = ['dalhelper']
-else:
-    __all__ = []
+__all__ = ['dalhelper'] if 'itpii' in sys.modules else []

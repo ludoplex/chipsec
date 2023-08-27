@@ -141,8 +141,9 @@ def check_rules(efi: EFI_SECTION, rules: Dict[str, Any], entry_name: str, _log: 
                (efi.Guid == rule['guid']):
                 match_result |= MATCH_GUID
         if (match_mask & MATCH_REGEXP) == MATCH_REGEXP:
-            m = re.compile(bytes(rule['regexp'], 'utf-8')).search(efi.Image)
-            if m:
+            if m := re.compile(bytes(rule['regexp'], 'utf-8')).search(
+                efi.Image
+            ):
                 match_result |= MATCH_REGEXP
                 _str = m.group(0)
                 hexver = _str.hex()
@@ -198,8 +199,7 @@ def check_match_criteria(efi: EFI_SECTION, criteria: Dict[str, Dict[str, Dict[st
     if _log is None:
         _log = logger()
     _log.log(f'[uefi] Checking {efi.name()}')
-    for k in criteria.keys():
-        entry = criteria[k]
+    for k, entry in criteria.items():
         # Check if the EFI binary is a match
         if 'match' in entry:
             bmatch = check_rules(efi, entry['match'], k, _log, cpuid=cpuid)

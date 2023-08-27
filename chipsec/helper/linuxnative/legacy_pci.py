@@ -90,8 +90,7 @@ class Ports:
         return cls.instance
 
     def inl(self, port: int) -> int:
-        x = self.inl_ptr(port)
-        return x
+        return self.inl_ptr(port)
 
     def outl(self, value: int, port: int) -> None:
         self.outl_ptr(value, port)
@@ -102,8 +101,7 @@ class LegacyPci:
     def read_pci_config(bus: int, dev: int, func: int, offset: int) -> int:
         ports = Ports.get_instance()
         ports.outl(0x80000000 | (bus << 16) | (dev << 11) | (func << 8) | offset, 0xcf8)
-        v = ports.inl(0xcfc)
-        return v
+        return ports.inl(0xcfc)
 
     @staticmethod
     def write_pci_config(bus: int, dev: int, func: int, offset: int, value: int) -> None:

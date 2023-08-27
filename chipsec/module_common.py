@@ -76,7 +76,7 @@ class ModuleResult:
     def setStatusBit(self, status) -> None:
         if is_set(self._result, status.value[0]) is not True:
             self._result ^= status.value[0]
-            self._message += ' / ' + status.value[1]
+            self._message += f' / {status.value[1]}'
             
     def setResultBits(self) -> None:
         self._return_code ^= self._result << 32

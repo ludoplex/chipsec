@@ -81,11 +81,8 @@ class smm_code_chk(BaseModule):
 
         self.cs.print_register('MSR_SMM_FEATURE_CONTROL', regval, cpu_thread=thread_id)
 
-        if 1 == code_chk_en:
-            if 1 == lock:
-                res = ModuleResult.PASSED
-            else:
-                res = ModuleResult.FAILED
+        if code_chk_en == 1:
+            return ModuleResult.PASSED if lock == 1 else ModuleResult.FAILED
         else:
             # MSR_SMM_MCA_CAP (the register that reports enhanced SMM capabilities) can only be read from SMM.
             # Thus, there is no way to tell whether the the CPU doesn't support SMM_Code_Chk_En in the first place,
@@ -93,18 +90,16 @@ class smm_code_chk(BaseModule):
             #
             # In either case, there is nothing that prevents SMM code from executing instructions outside the ranges defined by the SMRRs,
             # so we should at least issue a warning regarding that.
-            res = ModuleResult.WARNING
-
-        return res
+            return ModuleResult.WARNING
 
     def check_SMM_Code_Chk_En(self):
 
-        results = []
-        for tid in range(self.cs.msr.get_cpu_thread_count()):
-            results.append(self._check_SMM_Code_Chk_En(tid))
-
+        results = [
+            self._check_SMM_Code_Chk_En(tid)
+            for tid in range(self.cs.msr.get_cpu_thread_count())
+        ]
         # Check that all CPUs have the same value of MSR_SMM_FEATURE_CONTROL.
-        if not all(_ == results[0] for _ in results):
+        if any(_ != results[0] for _ in results):
             self.logger.log_failed("MSR_SMM_FEATURE_CONTROL does not have the same value across all CPUs")
             return ModuleResult.FAILED
 

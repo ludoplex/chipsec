@@ -81,14 +81,14 @@ class cpu_info(BaseModule):
                 for i in range(4):
                     brand += bytestostring(struct.pack('<I', regs[i]))
             brand = brand.rstrip('\x00')
-            self.logger.log('[*] Processor: {}'.format(brand))
+            self.logger.log(f'[*] Processor: {brand}')
 
             # Get processor version information
             (eax, _, _, _) = self.cs.cpu.cpuid(0x01, 0x00)
             stepping = eax & 0xF
             model = (eax >> 4) & 0xF
             family = (eax >> 8) & 0xF
-            if (family == 0x0F) or (family == 0x06):
+            if family in [0x0F, 0x06]:
                 model = ((eax >> 12) & 0xF0) | model
             if family == 0x0F:
                 family = ((eax >> 20) & 0xFF) | family

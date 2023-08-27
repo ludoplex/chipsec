@@ -76,10 +76,7 @@ class TcgPcrEvent:
         return kls(pcr_index, event_type, digest, event_size, event)
 
     def __str__(self) -> str:
-        if self.event_type_name:
-            t = self.event_type_name
-        else:
-            t = f'(0x{self.event_type:x}'
+        t = self.event_type_name if self.event_type_name else f'(0x{self.event_type:x}'
         return f'PCR: {self.pcr_index:d}\ttype: {t.ljust(EVENT_TYPE_MAX_LENGTH)}\tsize: 0x{self.event_size:x}\tdigest: {self.digest.hex()}'
 
 
@@ -113,8 +110,7 @@ class EFIFirmwareBlob(TcgPcrEvent):
 
     def __str__(self) -> str:
         _blob = super(EFIFirmwareBlob, self).__str__()
-        _str = f'{_blob}\n\t+ base: 0x{self.base:x}\tlength: 0x{self.length:x}'
-        return _str
+        return f'{_blob}\n\t+ base: 0x{self.base:x}\tlength: 0x{self.length:x}'
 
 
 SML_EVENT_TYPE: Dict[int, Any] = {
@@ -153,8 +149,9 @@ SML_EVENT_TYPE: Dict[int, Any] = {
     0x800000E0: "EV_EFI_VARIABLE_AUTHORITY"
 }
 
-EVENT_TYPE_MAX_LENGTH: int = max([len(v) for v in SML_EVENT_TYPE.values()
-                             if isinstance(v, str)])
+EVENT_TYPE_MAX_LENGTH: int = max(
+    len(v) for v in SML_EVENT_TYPE.values() if isinstance(v, str)
+)
 
 
 class PcrLogParser:
@@ -167,10 +164,10 @@ class PcrLogParser:
         return self
 
     def __next__(self) -> TcgPcrEvent:
-        event = TcgPcrEvent.parse(self.log)
-        if not event:
+        if event := TcgPcrEvent.parse(self.log):
+            return event
+        else:
             raise StopIteration()
-        return event
 
     def next(self) -> TcgPcrEvent:
         return self.__next__()

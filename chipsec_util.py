@@ -49,11 +49,11 @@ def is_option_valid_width(width_op):
 
 def get_option_width(width_op):
     width_op = width_op.lower()
-    if 'byte' == width_op:
+    if width_op == 'byte':
         return 0x1
-    elif 'word' == width_op:
+    elif width_op == 'word':
         return 0x2
-    elif 'dword' == width_op:
+    elif width_op == 'dword':
         return 0x4
     else:
         return 0x0
@@ -62,24 +62,28 @@ def get_option_width(width_op):
 def import_cmds() -> Dict[str, Any]:
     """Determine available chipsec_util commands"""
     cmds_dir = os.path.join(get_main_dir(), "chipsec", "utilcmd")
-    cmds = [i[:-3] for i in os.listdir(cmds_dir) if i[-3:] == ".py" and not i[:2] == "__"]
+    cmds = [
+        i[:-3]
+        for i in os.listdir(cmds_dir)
+        if i[-3:] == ".py" and i[:2] != "__"
+    ]
 
     if logger().DEBUG:
         logger().log('[CHIPSEC] Loaded command-line extensions:')
-        logger().log('   {}'.format(cmds))
+        logger().log(f'   {cmds}')
     module = None
     commands = {}
     for cmd in cmds:
         try:
-            cmd_path = 'chipsec.utilcmd.' + cmd
+            cmd_path = f'chipsec.utilcmd.{cmd}'
             module = importlib.import_module(cmd_path)
             cu = getattr(module, 'commands')
-            commands.update(cu)
+            commands |= cu
         except ImportError as msg:
             # Display the import error and continue to import commands
             logger().log_error(f"Exception occurred during import of {cmd}: '{str(msg)}'")
             continue
-    commands.update({"help": ""})
+    commands["help"] = ""
     return commands
 
 
@@ -171,7 +175,7 @@ class ChipsecUtil:
         if reqs.load_driver() and self._no_driver:
             self.logger.log("Cannot run command without a driver loaded.", level.ERROR)
             return ExitCode.ERROR
-            
+
         if reqs.load_config() and not self._load_config:
             self.logger.log("Cannot run command without a config loaded. Please run with -p and/or --pch if needed.", level.ERROR)
             return ExitCode.ERROR
@@ -179,7 +183,7 @@ class ChipsecUtil:
         try:
             self._cs.init(self._platform, self._pch, self._helper, reqs.load_driver(), reqs.load_config(), self._ignore_platform)
         except UnknownChipsetError as msg:
-            self.logger.log_error("Platform is not supported ({}).".format(str(msg)))
+            self.logger.log_error(f"Platform is not supported ({str(msg)}).")
             self.logger.log_error('To specify a cpu please use -p command-line option')
             self.logger.log_error('To specify a pch please use --pch command-line option\n')
             self.logger.log_error('If the correct configuration is not loaded, results should not be trusted.')
@@ -192,17 +196,17 @@ class ChipsecUtil:
             print_banner_properties(self._cs, os_version())
 
         self.logger.log(f"[CHIPSEC] Executing command '{self._cmd}' with args {self._cmd_args}\n")
-        
+
         try:
             comm.set_up()
         except Exception as msg:
             self.logger.log_error(msg)
             return
-        
+
         t = time()
         comm.run()
         self.logger.log(f"[CHIPSEC] Time elapsed {time()-t:.3f}")
-        
+
         comm.tear_down()
         if reqs.load_driver() and not self._no_driver:
             self._cs.destroy_helper()
@@ -210,9 +214,7 @@ class ChipsecUtil:
 
 
 def run(cli_cmd: str = '') -> int:
-    cli_cmds = []
-    if cli_cmd:
-        cli_cmds = cli_cmd.strip().split(' ')
+    cli_cmds = cli_cmd.strip().split(' ') if cli_cmd else []
     return main(cli_cmds)
 
 

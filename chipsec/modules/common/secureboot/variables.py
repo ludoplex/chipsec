@@ -142,11 +142,8 @@ class variables(BaseModule):
                             not_auth += 1
                             self.logger.log_bad(f'Variable {guid}:{name} is not authenticated')
 
-                    #
-                    # Attempt to modify contents of the variables
-                    #
-                    if do_modify:
-                        if self.can_modify(name, guid, data):
+                    if self.can_modify(name, guid, data):
+                        if do_modify:
                             not_wp += 1
             elif name in SECURE_BOOT_OPTIONAL_VARIABLES:
                 self.logger.log_important(f'Secure Boot variable {name} is not found but is optional')

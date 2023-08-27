@@ -125,14 +125,13 @@ def bit(bit_num: int) -> int:
 
 
 def is_set(val: int, bit_mask: int) -> bool:
-    return bool(val & bit_mask != 0)
+    return val & bit_mask != 0
 
 
 def scan_single_bit_mask(bit_mask: int) -> Optional[int]:
-    for bit_num in range(0, 7):
-        if bit_mask >> bit_num == 1:
-            return bit_num
-    return None
+    return next(
+        (bit_num for bit_num in range(0, 7) if bit_mask >> bit_num == 1), None
+    )
 
 
 def DB(val: int) -> bytes:
@@ -160,17 +159,14 @@ SIZE2FORMAT: Dict[int, str] = {
 
 
 def bytestostring(mbytes: AnyStr) -> str:
-    if isinstance(mbytes, bytes) or isinstance(mbytes, bytearray):
+    if isinstance(mbytes, (bytes, bytearray)):
         return mbytes.decode("latin_1")
     else:
         return mbytes
 
 
 def stringtobytes(mstr: AnyStr) -> bytes:
-    if isinstance(mstr, str):
-        return mstr.encode("latin_1")
-    else:
-        return mstr
+    return mstr.encode("latin_1") if isinstance(mstr, str) else mstr
 
 
 def pack1(value: int, size: int) -> bytes:

@@ -88,8 +88,8 @@ class bios_wp(BaseModule):
 
         # Is the BIOS flash region write protected?
         write_protected = 0
-        if (1 == ble) and (0 == bioswe):
-            if 1 == smmbwp:
+        if ble == 1 and bioswe == 0:
+            if smmbwp == 1:
                 self.logger.log_good("BIOS region write protection is enabled (writes restricted to SMM)")
                 write_protected = 1
             else:
@@ -117,38 +117,40 @@ class bios_wp(BaseModule):
                 areas = areas_to_protect[:]
                 for area in areas:
                     (start, end) = area
-                    if (base <= start) and (limit >= start):  # overlap bottom
-                        if limit >= end:
-                            areas_to_protect.remove(area)
-                        else:
-                            areas_to_protect.remove(area)
-                            area = (limit + 1, end)
-                            areas_to_protect.append(area)
-                    elif (base <= end) and (limit >= end):  # overlap top
-                        if base <= start:
-                            areas_to_protect.remove(area)
-                        else:
-                            areas_to_protect.remove(area)
-                            area = (start, base - 1)
-                            areas_to_protect.append(area)
-                    elif (base > start) and (limit < end):  # split
+                    if (
+                        (base <= start)
+                        and (limit >= start)
+                        and limit >= end
+                        or (base > start or limit < start)
+                        and (base <= end)
+                        and (limit >= end)
+                        and base <= start
+                    ):
+                        areas_to_protect.remove(area)
+                    elif base <= start and limit >= start:
+                        areas_to_protect.remove(area)
+                        area = (limit + 1, end)
+                        areas_to_protect.append(area)
+                    elif base <= end and limit >= end:
+                        areas_to_protect.remove(area)
+                        area = (start, base - 1)
+                        areas_to_protect.append(area)
+                    elif base > start and limit < end:  # split
                         areas_to_protect.remove(area)
                         areas_to_protect.append((start, base - 1))
                         areas_to_protect.append((limit + 1, end))
 
-        if len(areas_to_protect) == 0:
+        if not areas_to_protect:
             pr_cover_bios = True
-        else:
-            if (len(areas_to_protect) != 1) or (areas_to_protect[0] != (bios_base, bios_limit)):
-                pr_partial_cover_bios = True
+        elif (len(areas_to_protect) != 1) or (areas_to_protect[0] != (bios_base, bios_limit)):
+            pr_partial_cover_bios = True
 
         if pr_partial_cover_bios:
             self.logger.log('')
             self.logger.log_important("SPI protected ranges write-protect parts of BIOS region (other parts of BIOS can be modified)")
-        else:
-            if not pr_cover_bios:
-                self.logger.log('')
-                self.logger.log_important("None of the SPI protected ranges write-protect BIOS region")
+        elif not pr_cover_bios:
+            self.logger.log('')
+            self.logger.log_important("None of the SPI protected ranges write-protect BIOS region")
 
         return pr_cover_bios
 
@@ -163,17 +165,12 @@ class bios_wp(BaseModule):
                 self.logger.log_passed("BIOS is write protected (by SMM and SPI Protected Ranges)")
             else:
                 self.logger.log_passed("BIOS is write protected")
+        elif spr:
+            self.logger.log_passed("SPI Protected Ranges are configured to write protect BIOS")
         else:
-            if spr:
-                self.logger.log_passed("SPI Protected Ranges are configured to write protect BIOS")
-            else:
-                self.logger.log_important('BIOS should enable all available SMM based write protection mechanisms.')
-                self.logger.log_important('Or configure SPI protected ranges to protect the entire BIOS region.')
-                self.logger.log_failed("BIOS is NOT protected completely")
+            self.logger.log_important('BIOS should enable all available SMM based write protection mechanisms.')
+            self.logger.log_important('Or configure SPI protected ranges to protect the entire BIOS region.')
+            self.logger.log_failed("BIOS is NOT protected completely")
 
-        if wp or spr:
-            self.res = ModuleResult.PASSED
-        else:
-            self.res = ModuleResult.FAILED
-
+        self.res = ModuleResult.PASSED if wp or spr else ModuleResult.FAILED
         return self.res

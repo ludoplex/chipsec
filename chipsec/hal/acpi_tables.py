@@ -90,7 +90,7 @@ class RSDP(ACPI_TABLE):
 
     # some sanity checking on RSDP
     def is_RSDP_valid(self) -> bool:
-        return 0 != self.Checksum and (0x0 == self.Revision or 0x2 == self.Revision)
+        return self.Checksum != 0 and self.Revision in [0x0, 0x2]
 
 
 ########################################################################################################
@@ -121,7 +121,7 @@ class DMAR (ACPI_TABLE):
         struct_fmt = '=HH'
         while off < len(table_content) - 1:
             (_type, length) = struct.unpack(struct_fmt, table_content[off: off + struct.calcsize(struct_fmt)])
-            if 0 == length:
+            if length == 0:
                 break
             self.dmar_structures.append(self._get_structure_DMAR(_type, table_content[off: off + length]))
             off += length
@@ -142,15 +142,15 @@ class DMAR (ACPI_TABLE):
         return _str
 
     def _get_structure_DMAR(self, _type: int, DataStructure: bytes) -> str:
-        if 0x00 == _type:
+        if _type == 0x00:
             ret = self._get_DMAR_structure_DRHD(DataStructure)
-        elif 0x01 == _type:
+        elif _type == 0x01:
             ret = self._get_DMAR_structure_RMRR(DataStructure)
-        elif 0x02 == _type:
+        elif _type == 0x02:
             ret = self._get_DMAR_structure_ATSR(DataStructure)
-        elif 0x03 == _type:
+        elif _type == 0x03:
             ret = self._get_DMAR_structure_RHSA(DataStructure)
-        elif 0x04 == _type:
+        elif _type == 0x04:
             ret = self._get_DMAR_structure_ANDD(DataStructure)
         else:
             ret = (f"\n  Unknown DMAR structure 0x{_type:02X}\n")
@@ -163,7 +163,7 @@ class DMAR (ACPI_TABLE):
         off = struct.calcsize(self.DMAR_TABLE_FORMAT["DRHD_FORMAT"])
         while off < len(structure) - 1:
             (_, length) = struct.unpack(fmt, structure[off:off + step])
-            if 0 == length:
+            if length == 0:
                 break
             path_sz = length - struct.calcsize(self.DMAR_TABLE_FORMAT["DeviceScope_FORMAT"])
             f = self.DMAR_TABLE_FORMAT["DeviceScope_FORMAT"] + (f'{path_sz:d}s')
@@ -178,7 +178,7 @@ class DMAR (ACPI_TABLE):
         off = struct.calcsize(self.DMAR_TABLE_FORMAT["RMRR_FORMAT"])
         while off < len(structure) - 1:
             (_, length) = struct.unpack(fmt, structure[off:off + step])
-            if 0 == length:
+            if length == 0:
                 break
             path_sz = length - struct.calcsize(self.DMAR_TABLE_FORMAT["DeviceScope_FORMAT"])
             f = self.DMAR_TABLE_FORMAT["DeviceScope_FORMAT"] + (f'{path_sz:d}s')
@@ -193,7 +193,7 @@ class DMAR (ACPI_TABLE):
         off = struct.calcsize(self.DMAR_TABLE_FORMAT["ATSR_FORMAT"])
         while off < len(structure) - 1:
             (_, length) = struct.unpack(fmt, structure[off:off + step])
-            if 0 == length:
+            if length == 0:
                 break
             path_sz = length - struct.calcsize(self.DMAR_TABLE_FORMAT["DeviceScope_FORMAT"])
             f = self.DMAR_TABLE_FORMAT["DeviceScope_FORMAT"] + (f'{path_sz:d}s')
@@ -374,11 +374,11 @@ class APIC (ACPI_TABLE):
         }
 
     def parse(self, table_content: bytes) -> None:
-        (self.LAPICBase, self.Flags) = struct.unpack('=II', table_content[0: 8])
+        (self.LAPICBase, self.Flags) = struct.unpack('=II', table_content[:8])
         cont = 8
         while cont < len(table_content) - 1:
             (value, length) = struct.unpack('=BB', table_content[cont: cont + 2])
-            if 0 == length:
+            if length == 0:
                 break
             self.apic_structs.append(self.get_structure_APIC(value, table_content[cont: cont + length]))
             cont += length
@@ -397,35 +397,35 @@ class APIC (ACPI_TABLE):
         return apic_str
 
     def get_structure_APIC(self, value: int, DataStructure: bytes) -> str:
-        if 0x00 == value:
+        if value == 0x00:
             ret = ACPI_TABLE_APIC_PROCESSOR_LAPIC(*struct.unpack_from(self.APIC_TABLE_FORMAT["PROCESSOR_LAPIC"], DataStructure))
-        elif 0x01 == value:
+        elif value == 0x01:
             ret = ACPI_TABLE_APIC_IOAPIC(*struct.unpack_from(self.APIC_TABLE_FORMAT["IOAPIC"], DataStructure))
-        elif 0x02 == value:
+        elif value == 0x02:
             ret = ACPI_TABLE_APIC_INTERRUPT_SOURSE_OVERRIDE(*struct.unpack_from(self.APIC_TABLE_FORMAT["INTERRUPT_SOURSE_OVERRIDE"], DataStructure))
-        elif 0x03 == value:
+        elif value == 0x03:
             ret = ACPI_TABLE_APIC_NMI_SOURCE(*struct.unpack_from(self.APIC_TABLE_FORMAT["NMI_SOURCE"], DataStructure))
-        elif 0x04 == value:
+        elif value == 0x04:
             ret = ACPI_TABLE_APIC_LAPIC_NMI(*struct.unpack_from(self.APIC_TABLE_FORMAT["LAPIC_NMI"], DataStructure))
-        elif 0x05 == value:
+        elif value == 0x05:
             ret = ACPI_TABLE_APIC_LAPIC_ADDRESS_OVERRIDE(*struct.unpack_from(self.APIC_TABLE_FORMAT["LAPIC_ADDRESS_OVERRIDE"], DataStructure))
-        elif 0x06 == value:
+        elif value == 0x06:
             ret = ACPI_TABLE_APIC_IOSAPIC(*struct.unpack_from(self.APIC_TABLE_FORMAT["IOSAPIC"], DataStructure))
-        elif 0x07 == value:
+        elif value == 0x07:
             ret = ACPI_TABLE_APIC_PROCESSOR_LSAPIC(*struct.unpack_from(f'{self.APIC_TABLE_FORMAT["PROCESSOR_LSAPIC"]}{str(len(DataStructure) - 16)}s', DataStructure))
-        elif 0x08 == value:
+        elif value == 0x08:
             ret = ACPI_TABLE_APIC_PLATFORM_INTERRUPT_SOURCES(*struct.unpack_from(self.APIC_TABLE_FORMAT["PLATFORM_INTERRUPT_SOURCES"], DataStructure))
-        elif 0x09 == value:
+        elif value == 0x09:
             ret = ACPI_TABLE_APIC_PROCESSOR_Lx2APIC(*struct.unpack_from(self.APIC_TABLE_FORMAT["PROCESSOR_Lx2APIC"], DataStructure))
-        elif 0x0A == value:
+        elif value == 0x0A:
             ret = ACPI_TABLE_APIC_Lx2APIC_NMI(*struct.unpack_from(self.APIC_TABLE_FORMAT["Lx2APIC_NMI"], DataStructure))
-        elif 0x0B == value:
+        elif value == 0x0B:
             ret = ACPI_TABLE_APIC_GICC_CPU(*struct.unpack_from(self.APIC_TABLE_FORMAT["GICC_CPU"], DataStructure))
-        elif 0x0C == value:
+        elif value == 0x0C:
             ret = ACPI_TABLE_APIC_GIC_DISTRIBUTOR(*struct.unpack_from(self.APIC_TABLE_FORMAT["GIC_DISTRIBUTOR"], DataStructure))
-        elif 0x0D == value:
+        elif value == 0x0D:
             ret = ACPI_TABLE_APIC_GIC_MSI(*struct.unpack_from(self.APIC_TABLE_FORMAT["GIC_MSI"], DataStructure))
-        elif 0x0E == value:
+        elif value == 0x0E:
             ret = ACPI_TABLE_APIC_GIC_REDISTRIBUTOR(*struct.unpack_from(self.APIC_TABLE_FORMAT["GIC_REDISTRIBUTOR"], DataStructure))
         else:
             DataStructure_str = dump_buffer_bytes(DataStructure, length=16)
@@ -743,22 +743,20 @@ class FADT (ACPI_TABLE):
         self.acpi_disable = struct.unpack('B', table_content[17:18])[0]
         if len(table_content) >= 112:
             self.x_dsdt = struct.unpack('<Q', table_content[104:112])[0]
-        else:
-            if logger().HAL:
-                logger().log('[acpi] Cannot find X_DSDT entry in FADT.')
+        elif logger().HAL:
+            logger().log('[acpi] Cannot find X_DSDT entry in FADT.')
 
     def get_DSDT_address_to_use(self) -> Optional[int]:
         dsdt_address_to_use = None
         if self.x_dsdt is None:
             if self.dsdt != 0:
                 dsdt_address_to_use = self.dsdt
-        else:
-            if self.x_dsdt != 0 and self.dsdt == 0:
-                dsdt_address_to_use = self.x_dsdt
-            elif self.x_dsdt == 0 and self.dsdt != 0:
-                dsdt_address_to_use = self.dsdt
-            elif self.x_dsdt != 0 and self.x_dsdt == self.dsdt:
-                dsdt_address_to_use = self.x_dsdt
+        elif self.x_dsdt != 0 and self.dsdt == 0:
+            dsdt_address_to_use = self.x_dsdt
+        elif self.x_dsdt == 0 and self.dsdt != 0:
+            dsdt_address_to_use = self.dsdt
+        elif self.x_dsdt != 0 and self.x_dsdt == self.dsdt:
+            dsdt_address_to_use = self.x_dsdt
         return dsdt_address_to_use
 
     def __str__(self) -> str:
@@ -785,7 +783,7 @@ class BGRT (ACPI_TABLE):
         return
 
     def parse(self, table_content: bytes) -> None:
-        self.Version = struct.unpack('<H', table_content[0:2])[0]
+        self.Version = struct.unpack('<H', table_content[:2])[0]
         self.Status = struct.unpack('<b', table_content[2:3])[0]
         self.ImageType = struct.unpack('<b', table_content[3:4])[0]
         self.ImageAddress = struct.unpack('<Q', table_content[4:12])[0]
@@ -801,10 +799,7 @@ class BGRT (ACPI_TABLE):
             self.OrientationOffset = '270 degrees'
         else:
             self.OrientationOffset = 'Reserved bits are used'
-        if self.ImageType == 0:
-            self.ImageTypeStr = ' - Bitmap'
-        else:
-            self.ImageTypeStr = 'Reserved'
+        self.ImageTypeStr = ' - Bitmap' if self.ImageType == 0 else 'Reserved'
 
     def __str__(self) -> str:
         return f"""
@@ -843,7 +838,7 @@ class BERT (ACPI_TABLE):
         # DMAr Generic: {0x5B51FEF7, 0xC79D, 0x4434, {0x8F, 0x1B, 0xAA, 0x62, 0xDE, 0x3E, 0x2C, 0x64}}
         # Intel VT for Directed I/O Specific DMAr Section:  {0x71761D37, 0x32B2, 0x45cd, {0xA7, 0xD0, 0xB0, 0xFE 0xDD, 0x93, 0xE8, 0xCF}}
         # IOMMU Specific DMAr Section: {0x036F84E1, 0x7F37, 0x428c, {0xA7, 0x9E, 0x57, 0x5F, 0xDF, 0xAA, 0x84, 0xEC}}
-        val1 = struct.unpack('<L', table_content[0:4])[0]
+        val1 = struct.unpack('<L', table_content[:4])[0]
         val2 = struct.unpack('<L', table_content[4:8])[0]
         val3 = struct.unpack('<L', table_content[8:12])[0]
         val4 = struct.unpack('<L', table_content[12:16])[0]
@@ -872,10 +867,10 @@ class BERT (ACPI_TABLE):
             return results + '''Intel VT for Directed I/O Specific DMAr Section'''
         elif val1 == 0x036F84E1 and val2 == 0x7F37 and val3 == 0x428c and val4 in [0xA7, 0x9E, 0x57, 0x5F, 0xDF, 0xAA, 0x84, 0xEC]:
             return results + '''IOMMU Specific DMAr Section'''"""
-        return results + '''Unknown'''
+        return f'''{results}Unknown'''
 
     def parseTime(self, table_content: bytes) -> str:
-        seconds = struct.unpack('<B', table_content[0:1])[0]
+        seconds = struct.unpack('<B', table_content[:1])[0]
         minutes = struct.unpack('<B', table_content[1:2])[0]
         hours = struct.unpack('<B', table_content[2:3])[0]
         percision = struct.unpack('<B', table_content[3:4])[0]
@@ -890,7 +885,7 @@ class BERT (ACPI_TABLE):
 
     def parseGenErrorEntries(self, table_content: bytes) -> str:
         errorSeverities = ['Recoverable', 'Fatal', 'Corrected', 'None', 'Unknown severity entry']
-        sectionType = self.parseSectionType(table_content[0:16])
+        sectionType = self.parseSectionType(table_content[:16])
         errorSeverity = struct.unpack('<L', table_content[16:20])[0]
         revision = struct.unpack('<H', table_content[20:22])[0]
         validationBits = struct.unpack('<B', table_content[22:23])[0]
@@ -907,12 +902,12 @@ class BERT (ACPI_TABLE):
             data = str(struct.unpack('<P', table_content[72:errDataLen + 72])[0])
         else:
             data = 'None'
-        errorSeverity_str = errorSeverities[4]
-        if errorSeverity < 4:
-            errorSeverity_str = errorSeverities[errorSeverity]
-        revision_str = ''
-        if revision != 3:
-            revision_str = ' - Should be 0x003'
+        errorSeverity_str = (
+            errorSeverities[errorSeverity]
+            if errorSeverity < 4
+            else errorSeverities[4]
+        )
+        revision_str = ' - Should be 0x003' if revision != 3 else ''
         FRU_Id_str = ''
         if FRU_Id1 == 0 and FRU_Id2 == 0 and FRU_Id3 == 0 and FRU_Id4 == 0:
             FRU_Id_str = ' - Default value, invalid FRU ID'
@@ -939,7 +934,7 @@ class BERT (ACPI_TABLE):
 
     def parseErrorBlock(self, table_content: bytes) -> None:
         errorSeverities = ['Recoverable', 'Fatal', 'Corrected', 'None', 'Unknown severity entry']
-        blockStatus = struct.unpack('<L', table_content[0:4])[0]
+        blockStatus = struct.unpack('<L', table_content[:4])[0]
         rawDataOffset = struct.unpack('<L', table_content[4:8])[0]
         rawDataLen = struct.unpack('<L', table_content[8:12])[0]
         dataLen = struct.unpack('<L', table_content[12:16])[0]
@@ -965,7 +960,7 @@ Generic Error Status Block
 '''
 
     def parse(self, table_content: bytes) -> None:
-        self.BootRegionLen = struct.unpack('<L', table_content[0:4])[0]
+        self.BootRegionLen = struct.unpack('<L', table_content[:4])[0]
         self.BootRegionAddr = struct.unpack('<Q', table_content[4:12])[0]
         self.parseErrorBlock(self.bootRegion)
 
@@ -995,11 +990,11 @@ class EINJ (ACPI_TABLE):
         errorInjectActions = ['BEGIN_INJECTION_OPERATION', 'GET_TRIGGER_ERROR_ACTION', 'SET_ERROR_TYPE', 'GET_ERROR_TYPE', 'END_OPERATION', 'EXECUTE_OPERATION',
                               'CHECK_BUSY_STATUS', 'GET_COMMAND_STATUS', 'SET_ERROR_TYPE_WITH_ADDRESS', 'GET_EXECUTE_OPERATION_TIMING', 'not recognized as valid aciton']
         injectionInstructions = ['READ_REGISTER', 'READ_REGISTER_VALUE', 'WRITE_REGISTER', 'WRITE_REGISTER_VALUE', 'NOOP', 'not recognized as valid instruction']
-        injectionAction = struct.unpack('<B', table_content[0:1])[0]
+        injectionAction = struct.unpack('<B', table_content[:1])[0]
         instruction = struct.unpack('<B', table_content[1:2])[0]
         flags = struct.unpack('<B', table_content[2:3])[0]
         reserved = struct.unpack('<B', table_content[3:4])[0]
-        injectionHeaderSz = struct.unpack('<L', table_content[0:4])[0]
+        injectionHeaderSz = struct.unpack('<L', table_content[:4])[0]
         registerRegion = self.parseAddress(table_content[4:16])
         value = struct.unpack('<Q', table_content[16:24])[0]
         mask = struct.unpack('<Q', table_content[24:32])[0]
@@ -1013,16 +1008,13 @@ class EINJ (ACPI_TABLE):
             instruction_str = injectionInstructions[instruction]
         else:
             instruction_str = injectionInstructions[5]
-        if flags == 1 and (instruction == 2 or instruction == 3):
+        if flags == 1 and instruction in [2, 3]:
             flags_str = ' - PRESERVE_REGISTER'
         elif flags == 0:
             flags_str = ' - Ignore'
         else:
             flags_str = ''
-        if reserved != 0:
-            reserved_str = ' - Error, must be 0'
-        else:
-            reserved_str = ''
+        reserved_str = ' - Error, must be 0' if reserved != 0 else ''
         self.results_str += f"""
   Injection Instruction Entry
     Injection Action                                : 0x{injectionAction:02X} ( {injectionAction:d} ) - {injectionAction_str}
@@ -1035,13 +1027,11 @@ class EINJ (ACPI_TABLE):
     """
 
     def parseInjectionActionTable(self, table_contents: bytes, numInjections: int) -> None:
-        curInjection = 0
-        while curInjection < numInjections:
+        for curInjection in range(numInjections):
             self.parseInjection(table_contents[curInjection * 32:(curInjection + 1) * 32])
-            curInjection += 1
 
     def parse(self, table_content: bytes) -> None:
-        injectionHeaderSz = struct.unpack('<L', table_content[0:4])[0]
+        injectionHeaderSz = struct.unpack('<L', table_content[:4])[0]
         injectionFlags = struct.unpack('<B', table_content[4:5])[0]
         reserved1 = struct.unpack('<B', table_content[5:6])[0]
         reserved2 = struct.unpack('<B', table_content[6:7])[0]
@@ -1050,12 +1040,10 @@ class EINJ (ACPI_TABLE):
         reserved2 = reserved2 << 8
         reserved = reserved3 | reserved2 | reserved1
         injectionEntryCount = struct.unpack('<L', table_content[8:12])[0]
-        injection_str = ''
-        reserved_str = ''
-        if injectionFlags != 0:
-            injection_str = ' - Error, this feild should be 0'
-        if reserved != 0:
-            reserved_str = ' - Error, this field should be 0'
+        reserved_str = ' - Error, this field should be 0' if reserved != 0 else ''
+        injection_str = (
+            ' - Error, this feild should be 0' if injectionFlags != 0 else ''
+        )
         self.results_str = f"""
 ------------------------------------------------------------------
   Injection Header Size                             : 0x{injectionHeaderSz:016X} ( {injectionHeaderSz:d} )
@@ -1083,14 +1071,12 @@ class ERST (ACPI_TABLE):
         return str(GAS(table_content))
 
     def parseActionTable(self, table_content: bytes, instrCountEntry: int) -> None:
-        curInstruction = 0
-        while curInstruction < instrCountEntry:
+        for curInstruction in range(instrCountEntry):
             self.parseInstructionEntry(table_content[32 * curInstruction:])
-            curInstruction += 1
 
     def parseInstructionEntry(self, table_content: bytes) -> None:
         serializationInstr_str = ''
-        serializationAction = struct.unpack('<B', table_content[0:1])[0]
+        serializationAction = struct.unpack('<B', table_content[:1])[0]
         instruction = struct.unpack('<B', table_content[1:2])[0]
         flags = struct.unpack('<B', table_content[2:3])[0]
         reserved = struct.unpack('<B', table_content[3:4])[0]
@@ -1100,25 +1086,19 @@ class ERST (ACPI_TABLE):
         serializationActions = ['BEGIN_WRITE_OPERATION', 'BEGIN_READ_OPERATION', 'BEGIN_CLEAR_OPERATION', 'END_OPERATION', 'SET_RECORD_OFFESET', 'EXECUTE_OPERATION', 'CHECK_BUSY_STATUS',
                                 'GET_COMMAND_STATUS', 'GET_RECORD_IDENTIFIER', 'SET_RECORD_IDENTIFIER', 'GET_RECORD_COUNT', 'BEGIN_DUMMY_WRITE_OPERATION', 'RESERVED', 'GET_ERROR_LOG_ADDRESS_RANGE',
                                 'GET_ERROR_LOG_ADDRESS_RANGE_LENGTH', 'GET_ERROR_LOG_ADDRESS_RANGE_ATTEIBUTES', 'GET_EXECUTE_OPERATION_TIMINGS']
-        serializationInstructions = ['READ_REGISTER', 'READ_REGISTER_VALUE', 'WRITE_REGISTER', 'WRITE_REGISTER_VALUE', 'NOOP', 'LOAD_VAR1', 'LOAD_VAR2', 'STORE_VAR1', 'ADD', 'SUBTRACT',
-                                     'ADD_VALUE', 'SUBTRACT_VALUE', 'STALL', 'STALL_WHILE_TRUE', 'SKIP_NEXT_INSTRUCTION_IF_TRUE', 'GOTO', 'SET_SCR_ADDRESS_BASE', 'SET_DST_ADDRESS_BASE', 'MOVE_DATA']
-        if serializationAction < 17:
-            serializationAction_str = serializationActions[serializationAction]
-        else:
-            serializationAction_str = 'Unknown'
+        serializationAction_str = (
+            serializationActions[serializationAction]
+            if serializationAction < 17
+            else 'Unknown'
+        )
         if instruction < 17:
+            serializationInstructions = ['READ_REGISTER', 'READ_REGISTER_VALUE', 'WRITE_REGISTER', 'WRITE_REGISTER_VALUE', 'NOOP', 'LOAD_VAR1', 'LOAD_VAR2', 'STORE_VAR1', 'ADD', 'SUBTRACT',
+                                         'ADD_VALUE', 'SUBTRACT_VALUE', 'STALL', 'STALL_WHILE_TRUE', 'SKIP_NEXT_INSTRUCTION_IF_TRUE', 'GOTO', 'SET_SCR_ADDRESS_BASE', 'SET_DST_ADDRESS_BASE', 'MOVE_DATA']
             serializationInstr_str = serializationInstructions[instruction]
         else:
             serializationAction_str = 'Unknown'
-        if reserved != 0:
-            reserved_str = ' - Error, this should be 0'
-        else:
-            reserved_str = ''
-        if flags == 1:
-            flags_str = ' - PRESERVE_REGISTER'
-        else:
-            flags_str = ''
-
+        reserved_str = ' - Error, this should be 0' if reserved != 0 else ''
+        flags_str = ' - PRESERVE_REGISTER' if flags == 1 else ''
         self.results_str += f'''
     Serialization Intruction Entry
       Serialized Action                             : 0x{serializationAction:02X} - {serializationAction_str}
@@ -1131,13 +1111,10 @@ class ERST (ACPI_TABLE):
     '''
 
     def parse(self, table_content: bytes) -> None:
-        headerSz = struct.unpack('<L', table_content[0:4])[0]
+        headerSz = struct.unpack('<L', table_content[:4])[0]
         reserved = struct.unpack('<L', table_content[4:8])[0]
         instrCountEntry = struct.unpack('<L', table_content[8:12])[0]
-        if reserved != 0:
-            reserved_str = ' - Error, this should be 0'
-        else:
-            reserved_str = ''
+        reserved_str = ' - Error, this should be 0' if reserved != 0 else ''
         self.results_str = f"""
 ------------------------------------------------------------------
   Serialization Header Size                       : 0x{headerSz:08X} ( {headerSz:d} )
@@ -1162,23 +1139,23 @@ class HEST (ACPI_TABLE):
         return
 
     def parseErrEntry(self, table_content: bytes) -> Optional[int]:
-        _type = struct.unpack('<H', table_content[0:2])[0]
+        _type = struct.unpack('<H', table_content[:2])[0]
         if _type == 0:  # Arch Machine Check Execption Structure
             return self.parseAMCES(table_content)
         elif _type == 1:  # Arch Corrected Mach Check Structure or ArchitectureDeferred machine Check Structure
             return self.parseAMCS(table_content, _type)
         elif _type == 2:  # NMI Error Structure
             return self.parseNMIStructure(table_content)
-        elif _type == 6 or _type == 7 or _type == 8:  # PCIe Root Port AER Structure or PCIe Device AER Structure or PCIe Bridge AER Structure
+        elif _type in [6, 7, 8]:  # PCIe Root Port AER Structure or PCIe Device AER Structure or PCIe Bridge AER Structure
             return self.parsePCIe(table_content, _type)
-        elif _type == 9 or _type == 10:  # Generic hardware Error Source Structure or Generic Hardware Error Source version 2
+        elif _type in [9, 10]:  # Generic hardware Error Source Structure or Generic Hardware Error Source version 2
             return self.parseGHESS(table_content, _type)
         return
 
     def parseNotify(self, table_content: bytes) -> str:
         types = ['Polled', 'External Interrupt', 'Local Interrupt', 'SCI', 'NMI', 'CMCI', 'MCE', 'GPI-Signal',
                  'ARMv8 SEA', 'ARMv8 SEI', 'External Interrupt - GSIV', 'Software Delicated Exception', 'Reserved']
-        errorType = struct.unpack('<B', table_content[0:1])[0]
+        errorType = struct.unpack('<B', table_content[:1])[0]
         length = struct.unpack('<B', table_content[1:2])[0]
         configWrEn = struct.unpack('<H', table_content[2:4])[0]
         pollInterval = struct.unpack('<L', table_content[4:8])[0]
@@ -1188,11 +1165,7 @@ class HEST (ACPI_TABLE):
         errThreshVal = struct.unpack('<L', table_content[20:24])[0]
         errThreshWind = struct.unpack('<L', table_content[24:28])[0]
 
-        if errorType <= 12:
-            typeStr = types[errorType]
-        else:
-            typeStr = types[12]
-
+        typeStr = types[errorType] if errorType <= 12 else types[12]
         vector_str = ''
         if errorType == 10:
             vector_str = 'Specifies the GSIV triggerd by error source'
@@ -1216,7 +1189,7 @@ class HEST (ACPI_TABLE):
       """
 
     def machineBankParser(self, table_content: bytes) -> None:
-        bankNum = struct.unpack('<B', table_content[0:1])[0]
+        bankNum = struct.unpack('<B', table_content[:1])[0]
         clearStatus = struct.unpack('<B', table_content[1:2])[0]
         statusDataFormat = struct.unpack('<B', table_content[2:3])[0]
         reserved1 = struct.unpack('<L', table_content[3:4])[0]
@@ -1226,37 +1199,17 @@ class HEST (ACPI_TABLE):
         addrRegMSRAddr = struct.unpack('<L', table_content[20:24])[0]
         miscRegMSTAddr = struct.unpack('<L', table_content[24:28])[0]
 
-        if clearStatus == 0:
-            clearStatus_str = 'Clear'
-        else:
-            clearStatus_str = "Don't Clear"
-
+        clearStatus_str = 'Clear' if clearStatus == 0 else "Don't Clear"
         statusDataFormatStrList = ['IA-32 MCA', 'Intel 64 MCA', 'AMD64MCA', 'Reserved']
         if statusDataFormat < 3:
             statusDataFormat_str = statusDataFormatStrList[statusDataFormat]
         else:
             statusDataFormat_str = statusDataFormatStrList[3]
 
-        if controlRegMsrAddr != 0:
-            controlRegMsrAddr_str = ''
-        else:
-            controlRegMsrAddr_str = ' - Ignore'
-
-        if statusRegMSRAddr != 0:
-            statusRegMSRAddr_str = ''
-        else:
-            statusRegMSRAddr_str = ' - Ignore'
-
-        if addrRegMSRAddr != 0:
-            addrRegMSRAddr_str = ''
-        else:
-            addrRegMSRAddr_str = ' - Ignore'
-
-        if miscRegMSTAddr != 0:
-            miscRegMSTAddr_str = ''
-        else:
-            miscRegMSTAddr_str = ' - Ignore'
-
+        controlRegMsrAddr_str = '' if controlRegMsrAddr != 0 else ' - Ignore'
+        statusRegMSRAddr_str = '' if statusRegMSRAddr != 0 else ' - Ignore'
+        addrRegMSRAddr_str = '' if addrRegMSRAddr != 0 else ' - Ignore'
+        miscRegMSTAddr_str = '' if miscRegMSTAddr != 0 else ' - Ignore'
         self.resultsStr += f"""Machine Check Error Bank Structure
       Bank Number                                 : 0x{bankNum:04X}
       Clear Status On Initialization              : 0x{clearStatus:04X} - {clearStatus_str}
@@ -1353,10 +1306,7 @@ class HEST (ACPI_TABLE):
             ghes_assist = 0
             ghes_assist_str = 'Additional information not given'
 
-        flags_str = ''
-        if flags != 1 and flags != 4 and flags != 5:
-            flags_str = ' - Error, Reserved Bits are not 0'
-
+        flags_str = '' if flags in [1, 4, 5] else ' - Error, Reserved Bits are not 0'
         if firmware_first == 0:
             ghes_assist_str = 'Bit is reserved'
 
@@ -1393,11 +1343,7 @@ class HEST (ACPI_TABLE):
         maxSectorsPerRecord = struct.unpack('<L', table_content[12:16])[0]
         maxRawDataLength = struct.unpack('<L', table_content[16:20])[0]
 
-        if reserved == 0:
-            reserved_str = ''
-        else:
-            reserved_str = ' - Error, not 0'
-
+        reserved_str = '' if reserved == 0 else ' - Error, not 0'
         self.resultsStr += f"""
   Architecture NMI Error Structure
     Source ID                                     : 0x{sourceID:04X}
@@ -1458,15 +1404,11 @@ class HEST (ACPI_TABLE):
         else:
             global_flag = 0
             global_flag_str = 'Settings in table are not for all PCIe Devices'
-        flags_str = ''
-        reserved2_str = ''
         isGlobal_str = ''
         isFirmware_str = ''
 
-        if flags >= 4:
-            flags_str = 'Error, reserved bits are not 0'
-        if reserved2 != 0:
-            reserved2_str = ' - Error, reserved bits should be 0'
+        flags_str = 'Error, reserved bits are not 0' if flags >= 4 else ''
+        reserved2_str = ' - Error, reserved bits should be 0' if reserved2 != 0 else ''
         if global_flag != 0:
             isGlobal_str = ' - This field should be ignored since Global is set'
         if firmware_first != 0:
@@ -1538,7 +1480,7 @@ class HEST (ACPI_TABLE):
         return 64
 
     def parse(self, table_content: bytes) -> None:
-        self.ErrorSourceCount = struct.unpack('<L', table_content[0:4])[0]
+        self.ErrorSourceCount = struct.unpack('<L', table_content[:4])[0]
         self.resultsStr = f"""
 ------------------------------------------------------------------
   Error Source Count                              : {self.ErrorSourceCount}
@@ -1569,7 +1511,7 @@ class SPMI (ACPI_TABLE):
         return str(GAS(table_content))
 
     def parseNonUID(self, table_content: bytes) -> str:
-        pciSegGrpNum = struct.unpack('<B', table_content[0:1])[0]
+        pciSegGrpNum = struct.unpack('<B', table_content[:1])[0]
         pciBusNum = struct.unpack('<B', table_content[1:2])[0]
         pciDevNum = struct.unpack('<B', table_content[2:3])[0]
         pciFuncNum = struct.unpack('<B', table_content[3:4])[0]
@@ -1579,11 +1521,11 @@ class SPMI (ACPI_TABLE):
   PCI Function Number                                     : 0x{pciFuncNum:02X}'''
 
     def parseUID(self, table_content: bytes) -> str:
-        uid = struct.unpack('<L', table_content[0:4])[0]
+        uid = struct.unpack('<L', table_content[:4])[0]
         return f'''  UID                                                     : 0x{uid:02X}'''
 
     def parse(self, table_content: bytes) -> None:
-        interfaceType = struct.unpack('<B', table_content[0:1])[0]
+        interfaceType = struct.unpack('<B', table_content[:1])[0]
         reserved1 = struct.unpack('<B', table_content[1:2])[0]
         specRev = struct.unpack('<B', table_content[2:3])[0]
         interruptType = struct.unpack('<H', table_content[3:5])[0]
@@ -1607,17 +1549,9 @@ class SPMI (ACPI_TABLE):
         intType_0 = interruptType & 1
         intType_1 = interruptType & 2 >> 1
         intType_other = interruptType ^ 3 >> 2
-        if intType_0 == 1:
-            intTypeSCIGPE = "supported"
-        else:
-            intTypeSCIGPE = "not supported"
-        if intType_1 == 1:
-            intTypeIO = "supported"
-        else:
-            intTypeIO = "not supported"
-        GPE_str = ''
-        if (interruptType & 1) != 1:
-            GPE_str = " - should be set to 00h"
+        intTypeSCIGPE = "supported" if intType_0 == 1 else "not supported"
+        intTypeIO = "supported" if intType_1 == 1 else "not supported"
+        GPE_str = " - should be set to 00h" if (interruptType & 1) != 1 else ''
         pciDeviceFlag_0 = pciDeviceFlag & 1
         if pciDeviceFlag_0 == 1:
             pci_str = 'For PCi IPMI devices'
@@ -1626,9 +1560,7 @@ class SPMI (ACPI_TABLE):
             pci_str = 'non-PCI device'
             otherStr = self.parseUID(table_content[25:28])
         pciDeviceFlag_reserved = 1 ^ pciDeviceFlag_0
-        globalSysInt_str = ''
-        if intType_1 != 1:
-            globalSysInt_str = ' - this field should be 0'
+        globalSysInt_str = ' - this field should be 0' if intType_1 != 1 else ''
         self.results = f'''==================================================================
   Service Processor Management Interface Description Table ( SPMI )
 ==================================================================
@@ -1666,7 +1598,7 @@ class RASF (ACPI_TABLE):
         return
 
     def parse(self, table_content: bytes) -> None:
-        rpcci1 = struct.unpack('<B', table_content[0:1])[0]
+        rpcci1 = struct.unpack('<B', table_content[:1])[0]
         rpcci2 = struct.unpack('<B', table_content[1:2])[0]
         rpcci3 = struct.unpack('<B', table_content[2:3])[0]
         rpcci4 = struct.unpack('<B', table_content[3:4])[0]
@@ -1700,7 +1632,7 @@ class MSCT (ACPI_TABLE):
         return
 
     def parseProx(self, table_content: bytes, val: int) -> str:
-        rev = struct.unpack('<B', table_content[0:1])[0]
+        rev = struct.unpack('<B', table_content[:1])[0]
         length = struct.unpack('<B', table_content[1:2])[0]
         maxDomRangeL = struct.unpack('<L', table_content[2:6])[0]
         maxDomRangeH = struct.unpack('<L', table_content[6:10])[0]
@@ -1724,15 +1656,13 @@ class MSCT (ACPI_TABLE):
 '''
 
     def parseProxDomInfoStruct(self, table_contents: bytes, num: int) -> str:
-        val = 0
-        result = ''
-        while val < num:
-            result += self.parseProx(table_contents[22 * val: 22 * (val + 1)], val)
-            val = val + 1
-        return result
+        return ''.join(
+            self.parseProx(table_contents[22 * val : 22 * (val + 1)], val)
+            for val in range(num)
+        )
 
     def parse(self, table_content: bytes) -> None:
-        offsetProxDomInfo = struct.unpack('<L', table_content[0:4])[0]
+        offsetProxDomInfo = struct.unpack('<L', table_content[:4])[0]
         maxNumProxDoms = struct.unpack('<L', table_content[4:8])[0]
         maxNumClockDoms = struct.unpack('<L', table_content[8:12])[0]
         maxPhysAddr = struct.unpack('<Q', table_content[12:20])[0]
@@ -1781,11 +1711,10 @@ class NFIT (ACPI_TABLE):
             cap1_str = 'Platform does not ensure the entire CPU store data path is flushed to persistent memory on system power loss'
         if cap2 == 2:
             cap2_str = 'Platform provides mehanisms to automatically flush outstanding write data from the memory controller to persistent memory in the event of power loss'
+        elif cap1 == 1:
+            cap2_str = 'Platform does not provides mehanisms to automatically flush outstanding write data from the memory controller to persistent memory in the event of power loss'
         else:
-            if cap1 == 1:
-                cap2_str = 'Platform does not provides mehanisms to automatically flush outstanding write data from the memory controller to persistent memory in the event of power loss'
-            else:
-                cap2_str = 'This should be set to 1 - Platform does not support'
+            cap2_str = 'This should be set to 1 - Platform does not support'
         if cap3 == 4:
             cap3_str = 'Platform supports mirroring multiple byte addressable persistent memory regions together'
         else:

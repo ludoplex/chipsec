@@ -69,7 +69,7 @@ class locks(HALBase):
         if is_set(res, LockResult.HAS_CONFIG) and is_set(res, LockResult.CAN_READ):
             locked = self.cs.get_locked_value(lock_name)
             lock_setting = self.cs.get_lock(lock_name, bus=bus)
-            if not all(lock_setting[0] == elem for elem in lock_setting):
+            if any(lock_setting[0] != elem for elem in lock_setting):
                 res |= LockResult.INCONSISTENT
             if all(locked == elem for elem in lock_setting):
                 res |= LockResult.LOCKED

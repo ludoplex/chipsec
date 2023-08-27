@@ -56,14 +56,13 @@ class c_translation:
         ADDR_2MB = 0xFFFFFFFFFFE00000
         ADDR_1GB = 0xFFFFFFFFC0000000
         if self.is_translation_exist(addr, ADDR_4KB, '4KB'):
-            result = self.translation[addr & ADDR_4KB]['addr'] | (addr & ~ADDR_4KB)
+            return self.translation[addr & ADDR_4KB]['addr'] | (addr & ~ADDR_4KB)
         elif self.is_translation_exist(addr, ADDR_2MB, '2MB'):
-            result = self.translation[addr & ADDR_2MB]['addr'] | (addr & ~ADDR_2MB)
+            return self.translation[addr & ADDR_2MB]['addr'] | (addr & ~ADDR_2MB)
         elif self.is_translation_exist(addr, ADDR_1GB, '1GB'):
-            result = self.translation[addr & ADDR_1GB]['addr'] | (addr & ~ADDR_1GB)
+            return self.translation[addr & ADDR_1GB]['addr'] | (addr & ~ADDR_1GB)
         else:
-            result = None
-        return result
+            return None
 
     def get_pages_by_physaddr(self, addr: int) -> List[Dict[str, int]]:
         SIZE = {'4KB': ADDR_4KB, '2MB': ADDR_2MB, '1GB': ADDR_1GB}
@@ -76,11 +75,8 @@ class c_translation:
         return result
 
     def get_address_space(self) -> int:
-        total = 0
         mem_range = self.get_mem_range()
-        for i in mem_range:
-            total += i[1] - i[0]
-        return total
+        return sum(i[1] - i[0] for i in mem_range)
 
     def get_mem_range(self, noattr: bool = False) -> List[List[int]]:
         SIZE = {'4KB': SIZE_4KB, '2MB': SIZE_2MB, '1GB': SIZE_1GB}
@@ -114,10 +110,10 @@ class c_translation:
         SIZE = {'1GB': '2MB', '2MB': '4KB'}
         for virt in self.translation.keys():
             size = self.translation[virt]['size']
-            attr = self.translation[virt]['attr']
-            phys = self.translation[virt]['addr']
             pgsize = (1 << 12) if size == '2MB' else (1 << 20)
             if size == exp_size:
+                attr = self.translation[virt]['attr']
+                phys = self.translation[virt]['addr']
                 for i in range(512):
                     self.add_page(virt + i * pgsize, phys + i * pgsize, SIZE[exp_size], attr)
         return
@@ -181,8 +177,7 @@ class c_paging(c_paging_with_2nd_level_translation, c_translation):
 
     def get_canonical(self, va: int) -> int:
         canonical_mask = (ADDR_MASK << (self.canonical_msb + 1)) & ADDR_MASK
-        canonical_va = (va | canonical_mask) if (va >> self.canonical_msb) & 0x1 else va
-        return canonical_va
+        return (va | canonical_mask) if (va >> self.canonical_msb) & 0x1 else va
 
     def get_field(self, entry: int, desc: Dict[str, int]) -> int:
         return (entry >> desc['offset']) & desc['mask']
@@ -199,9 +194,7 @@ class c_paging(c_paging_with_2nd_level_translation, c_translation):
         same = True
         for i in range(len(entries)):
             same = same and (entries[0] == entries[i])
-        if same:
-            return [entries[0]]
-        return entries
+        return [entries[0]] if same else entries
 
     def print_info(self, name: str) -> None:
         logger().log(f'\n  {name} physical address ranges:')
@@ -222,7 +215,7 @@ class c_paging(c_paging_with_2nd_level_translation, c_translation):
         mem_range = self.get_mem_range()
         for addr in addr_list:
             for i in range(len(mem_range)):
-                if (mem_range[i][0] <= addr) and (addr < mem_range[i][1]):
+                if mem_range[i][0] <= addr < mem_range[i][1]:
                     logger().log_hal(f'*** WARNING: PAGE TABLES MISCONFIGURATION  0x{addr:013X}')
         return
 
@@ -331,15 +324,8 @@ class c_4level_page_tables(c_paging):
         return
 
     def get_attr(self, entry: int) -> str:
-        ret = ''
-        if entry & chipsec.defines.BIT1:
-            ret += 'W'
-        else:
-            ret += "R"
-        if entry & chipsec.defines.BIT2:
-            ret += 'U'
-        else:
-            ret += 'S'
+        ret = '' + ('W' if entry & chipsec.defines.BIT1 else "R")
+        ret += 'U' if entry & chipsec.defines.BIT2 else 'S'
         return ret
 
     def read_pdpt(self, addr: int, pml4e_index: int) -> None:
@@ -551,7 +537,7 @@ class c_vtd_page_tables(c_extended_page_tables):
             self.cpt = {addr: 'root'}
             self.read_re(addr)
 
-            if len(self.domains) != 0:
+            if self.domains:
                 logger().log('[paging] VT-d domains:')
                 for domain in sorted(self.domains.keys()):
                     logger().log(f'  0x{domain:016X} ')

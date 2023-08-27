@@ -64,7 +64,7 @@ class spi_lock(BaseModule):
         reg_print = True
         if self.cs.is_control_defined('SpiWriteStatusDis'):
             wrsdis = self.cs.get_control('SpiWriteStatusDis', with_print=reg_print)
-            if 1 == wrsdis:
+            if wrsdis == 1:
                 self.logger.log_good('SPI write status disable set.')
             else:
                 res = ModuleResult.FAILED
@@ -72,7 +72,7 @@ class spi_lock(BaseModule):
             reg_print = False
 
         flockdn = self.cs.get_control('FlashLockDown', with_print=reg_print)
-        if 1 == flockdn:
+        if flockdn == 1:
             self.logger.log_good("SPI Flash Controller configuration is locked")
         else:
             res = ModuleResult.FAILED

@@ -90,8 +90,9 @@ class Ucode:
 
     # @TODO remove later/replace with msr.get_cpu_thread_count()
     def get_cpu_thread_count(self) -> int:
-        thread_count = self.cs.read_register_field("IA32_MSR_CORE_THREAD_COUNT", "Thread_Count")
-        return thread_count
+        return self.cs.read_register_field(
+            "IA32_MSR_CORE_THREAD_COUNT", "Thread_Count"
+        )
 
     def ucode_update_id(self, cpu_thread_id: int) -> int:
         (bios_sign_id_lo, bios_sign_id_hi) = self.helper.read_msr(cpu_thread_id, IA32_MSR_BIOS_SIGN_ID)

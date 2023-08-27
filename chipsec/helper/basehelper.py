@@ -29,11 +29,11 @@ if TYPE_CHECKING:
 
 class Helper(ABC):
     class __metaclass__(type):
-        def __init__(cls, name, bases, attrs):
-            if not hasattr(cls, 'registry'):
-                cls.registry = []
+        def __init__(self, name, bases, attrs):
+            if not hasattr(self, 'registry'):
+                self.registry = []
             else:
-                cls.registry.append((name, cls))
+                self.registry.append((name, self))
 
     @abstractmethod
     def __init__(self):

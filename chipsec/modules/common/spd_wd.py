@@ -85,16 +85,15 @@ class spd_wd(BaseModule):
 
         self.cs.print_register('SMBUS_HCFG', spd_wd_reg)
 
-        if 1 == spd_wd:
+        if spd_wd == 1:
             self.logger.log_passed("SPD Write Disable is set")
             self.res = ModuleResult.PASSED
+        elif _spd.detect():
+            self.logger.log_failed("SPD Write Disable is not set and SPDs were detected")
+            self.res = ModuleResult.FAILED
         else:
-            if _spd.detect():
-                self.logger.log_failed("SPD Write Disable is not set and SPDs were detected")
-                self.res = ModuleResult.FAILED
-            else:
-                self.logger.log_information("SPD Write Disable is not set, but no SPDs detected")
-                self.res = ModuleResult.INFORMATION
+            self.logger.log_information("SPD Write Disable is not set, but no SPDs detected")
+            self.res = ModuleResult.INFORMATION
 
         return self.res
 

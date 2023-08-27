@@ -38,12 +38,10 @@ class ReplayHelper(Helper):
         self.name = "ReplayHelper"
         if filepath and os.path.isfile(filepath):
             self.config_file = filepath
+        elif files := glob(os.path.join("chipsec", "helper", "record", "*.json")):
+            self.config_file = max(files, key=os.path.getctime)
         else:
-            files = glob(os.path.join("chipsec", "helper", "record", "*.json"))
-            if files:
-                self.config_file = max(files, key=os.path.getctime)
-            else:
-                raise FileNotFoundError("Cannot find a recorded file to load")
+            raise FileNotFoundError("Cannot find a recorded file to load")
         self._data = {}
         
 
@@ -73,10 +71,10 @@ class ReplayHelper(Helper):
             targs = f"({','.join(str(i) for i in args)})"
         except Exception:
             targs = str(args)
-        if str(cmd) in self._data:
-            if targs in self._data[str(cmd)]:
+        if cmd in self._data:
+            if targs in self._data[cmd]:
                 return self._data[cmd][targs].pop()
-        logger().log_error(f"Missing entry for {str(cmd)} {targs}")
+        logger().log_error(f"Missing entry for {cmd} {targs}")
         return None
     
     def _load(self) -> None:

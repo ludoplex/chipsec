@@ -104,7 +104,12 @@ class sgx_check(BaseModule):
         self.logger.log("[*] Verifying IA32_FEATURE_CONTROL MSR is configured")
         bios_feature_control_enable = True
         for tid in range(self.cs.msr.get_cpu_thread_count()):
-            if not (self.cs.read_register_field('IA32_FEATURE_CONTROL', 'SGX_GLOBAL_EN', False, tid) == 1):
+            if (
+                self.cs.read_register_field(
+                    'IA32_FEATURE_CONTROL', 'SGX_GLOBAL_EN', False, tid
+                )
+                != 1
+            ):
                 bios_feature_control_enable = False
         if bios_feature_control_enable:
             self.logger.log_good("Intel SGX is Enabled in BIOS")
@@ -117,7 +122,7 @@ class sgx_check(BaseModule):
         for tid in range(self.cs.msr.get_cpu_thread_count()):
             feature_cntl_lock = self.cs.get_control('Ia32FeatureControlLock', tid)
             self.logger.log_verbose(f"[*] cpu{tid:d}: IA32_Feature_Control Lock = {feature_cntl_lock:d}")
-            if 0 == feature_cntl_lock:
+            if feature_cntl_lock == 0:
                 locked = False
         if locked:
             self.logger.log_good("IA32_Feature_Control locked")
@@ -144,7 +149,7 @@ class sgx_check(BaseModule):
 
         # Check PRMRR configurations on each core.
         self.logger.log("\n[*] Verifying PRMRR Configuration on each core.")
-        
+
         self.prmrr = self.PRMRR(self.logger, self.cs)
         try:
             self.prmrr._check_prmrr()
@@ -155,8 +160,8 @@ class sgx_check(BaseModule):
                 self.logger.log_important("Please try running in a Linux environment. The results there may be more complete.")
         else:
             self.check_prmrr_values()
-        
-        
+
+
 
         if bios_feature_control_enable and locked:
             sgx1_instr_support = False
@@ -226,7 +231,7 @@ class sgx_check(BaseModule):
         else:
             self.logger.log_bad("Silicon debug features are not disabled")
             self.res = ModuleResult.FAILED
-        if (0 == debug_enable) and (1 == sgx_debug_status):
+        if debug_enable == 0 and sgx_debug_status == 1:
             self.logger.log_bad("Enabling sgx_debug without enabling debug mode in msr IA32_DEBUG_INTERFACE is not a valid configuration")
             self.res = ModuleResult.FAILED
         if debug_lock == 1:

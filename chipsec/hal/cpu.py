@@ -52,8 +52,7 @@ class CPU(hal_base.HALBase):
 
     def write_cr(self, cpu_thread_id: int, cr_number: int, value: int) -> int:
         logger().log_hal(f'[cpu{cpu_thread_id:d}] write CR{cr_number:d}: value = 0x{value:08X}')
-        status = self.helper.write_cr(cpu_thread_id, cr_number, value)
-        return status
+        return self.helper.write_cr(cpu_thread_id, cr_number, value)
 
     def cpuid(self, eax: int, ecx: int) -> Tuple[int, int, int, int]:
         logger().log_hal(f'[cpu] CPUID in : EAX=0x{eax:08X}, ECX=0x{ecx:08X}')
@@ -109,9 +108,9 @@ class CPU(hal_base.HALBase):
         for apic in _acpi.get_parse_ACPI_table(acpi.ACPI_TABLE_SIG_APIC):  # (table_header, APIC_object, table_header_blob, table_blob)
             _, APIC_object, _, _ = apic
             for structure in APIC_object.apic_structs:
-                if 0x00 == structure.Type:
-                    if not structure.ACICID in dACPIID:
-                        if 1 == structure.Flags:
+                if structure.Type == 0x00:
+                    if structure.ACICID not in dACPIID:
+                        if structure.Flags == 1:
                             dACPIID[structure.APICID] = structure.ACPIProcID
         return len(dACPIID)
 
@@ -120,27 +119,25 @@ class CPU(hal_base.HALBase):
         num_threads = self.cs.helper.get_threads_count()
         packages: Dict[int, List[int]] = {}
         cores: Dict[int, List[int]] = {}
+        eax = 0xb   # cpuid leaf 0B contains x2apic info
+        ecx = 1     # ecx 1 will get us pkg_id in edx after shifting right by _eax
         for thread in range(num_threads):
             self.logger.log_hal(f'Setting affinity to: {thread:d}')
             self.cs.helper.set_affinity(thread)
-            eax = 0xb   # cpuid leaf 0B contains x2apic info
-            ecx = 1     # ecx 1 will get us pkg_id in edx after shifting right by _eax
             (_eax, _, _, _edx) = self.cs.cpu.cpuid(eax, ecx)
             pkg_id = _edx >> (_eax & 0xf)
             if pkg_id not in packages:
                 packages[pkg_id] = []
             packages[pkg_id].append(thread)
 
-            ecx = 0     # ecx 0 will get us the core_id in edx after shifting right by _eax
-            (_eax, _, _, _edx) = self.cs.cpu.cpuid(eax, ecx)
+            (_eax, _, _, _edx) = self.cs.cpu.cpuid(eax, 0)
             core_id = _edx >> (_eax & 0xf)
             if core_id not in cores:
                 cores[core_id] = []
             cores[core_id].append(thread)
             self.logger.log_hal(f'pkg id is {pkg_id:x}')
             self.logger.log_hal(f'core id is {core_id:x}')
-        topology = {'packages': packages, 'cores': cores}
-        return topology
+        return {'packages': packages, 'cores': cores}
 
     # determine number of physical sockets using the CPUID and APIC ACPI table
     def get_number_sockets_from_APIC_table(self) -> int:
@@ -214,7 +211,7 @@ class CPU(hal_base.HALBase):
         if logger().HAL:
             self.cs.print_register('MTRRCAP', mtrrcap_msr_reg)
         smrr = self.cs.get_register_field('MTRRCAP', mtrrcap_msr_reg, 'SMRR')
-        return (1 == smrr)
+        return smrr == 1
 
     #
     # Dump CPU page tables at specified physical base of paging-directory hierarchy (CR3)

@@ -85,8 +85,7 @@ class Cfg:
     # Private functions
     ###
     def _make_hex_key_str(self, int_val):
-        str_val = '{:04X}'.format(int_val)
-        return str_val
+        return '{:04X}'.format(int_val)
 
     ###
     # PCI device tree enumeration
@@ -162,7 +161,7 @@ class Cfg:
         for parser in self.parsers:
             if parser.get_stage() != stage:
                 continue
-            handlers.update(parser.get_metadata())
+            handlers |= parser.get_metadata()
         return handlers
 
     def _update_supported_platforms(self, conf_data, data):
@@ -234,15 +233,15 @@ class Cfg:
         if not load_list or not tag_handlers:
             return
         for fxml in load_list:
-            self.logger.log_debug('[*] Loading {} config data: [{}] - {}'.format(stage_str,
-                                                                                 fxml.dev_name,
-                                                                                 fxml.xml_file))
+            self.logger.log_debug(
+                f'[*] Loading {stage_str} config data: [{fxml.dev_name}] - {fxml.xml_file}'
+            )
             if not os.path.isfile(fxml.xml_file):
-                self.logger.log_debug('[-] File not found: {}'.format(fxml.xml_file))
+                self.logger.log_debug(f'[-] File not found: {fxml.xml_file}')
                 continue
             for config_root in self._get_config_iter(fxml):
                 for tag in tag_handlers:
-                    self.logger.log_debug('[*] Loading {} data...'.format(tag))
+                    self.logger.log_debug(f'[*] Loading {tag} data...')
                     for node in config_root.iter(tag):
                         tag_handlers[tag](node, fxml)
 
@@ -252,25 +251,25 @@ class Cfg:
     def load_parsers(self):
         parser_path = os.path.join(get_main_dir(), 'chipsec', 'cfg', 'parsers')
         if not os.path.isdir(parser_path):
-            raise CSConfigError('Unable to locate configuration parsers: {}'.format(parser_path))
+            raise CSConfigError(f'Unable to locate configuration parsers: {parser_path}')
         parser_files = [f for f in sorted(os.listdir(parser_path))
                         if fnmatch(f, '*.py') and not fnmatch(f, '__init__.py')]
         for parser in parser_files:
             parser_name = '.'.join(['chipsec', 'cfg', 'parsers', os.path.splitext(parser)[0]])
-            self.logger.log_debug('[*] Importing parser: {}'.format(parser_name))
+            self.logger.log_debug(f'[*] Importing parser: {parser_name}')
             try:
                 module = importlib.import_module(parser_name)
             except Exception:
-                self.logger.log_debug('[*] Failed to import {}'.format(parser_name))
+                self.logger.log_debug(f'[*] Failed to import {parser_name}')
                 continue
             if not hasattr(module, 'parsers'):
-                self.logger.log_debug('[*] Missing parsers variable: {}'.format(parser))
+                self.logger.log_debug(f'[*] Missing parsers variable: {parser}')
                 continue
             for obj in module.parsers:
                 try:
                     parser_obj = obj(self)
                 except Exception:
-                    self.logger.log_debug('[*] Failed to create object: {}'.format(parser))
+                    self.logger.log_debug(f'[*] Failed to create object: {parser}')
                     continue
                 parser_obj.startup()
                 self.parsers.append(parser_obj)
@@ -284,7 +283,9 @@ class Cfg:
             self.load_extra = [config_data(None, None, os.path.join(config_path, f)) for f in sorted(os.listdir(config_path))
                                if fnmatch(f, '*.xml') and fnmatch(f, filename)]
         else:
-            raise CSConfigError('Unable to locate configuration file(s): {}'.format(config_path.xml_file))
+            raise CSConfigError(
+                f'Unable to locate configuration file(s): {config_path.xml_file}'
+            )
         if loadnow and self.load_extra:
             self._load_sec_configs(self.load_extra, Stage.EXTRA)
 
@@ -303,27 +304,26 @@ class Cfg:
 
         # Process platform info data and generate lookup tables
         for fxml in cfg_files:
-            self.logger.log_debug('[*] Processing platform config information: {}'.format(fxml.xml_file))
+            self.logger.log_debug(
+                f'[*] Processing platform config information: {fxml.xml_file}'
+            )
             for config_root in self._get_config_iter(fxml):
                 stage_data = stage_info(fxml.vid_str, config_root)
                 for tag in tag_handlers:
                     for node in config_root.iter(tag):
-                        data = tag_handlers[tag](node, stage_data)
-                        if not data:
-                            continue
-                        self._update_supported_platforms(fxml, data)
+                        if data := tag_handlers[tag](node, stage_data):
+                            self._update_supported_platforms(fxml, data)
 
         # Create platform global data
         for cc in self.proc_codes:
-            globals()["CHIPSET_CODE_{}".format(cc.upper())] = cc.upper()
+            globals()[f"CHIPSET_CODE_{cc.upper()}"] = cc.upper()
         for pc in self.pch_codes:
-            globals()["PCH_CODE_{}".format(pc[4:].upper())] = pc.upper()
+            globals()[f"PCH_CODE_{pc[4:].upper()}"] = pc.upper()
 
     def platform_detection(self, proc_code, pch_code, cpuid):
         # Detect processor files
         self.cpuid = cpuid
-        sku = self._find_sku_data(self.proc_dictionary, proc_code, cpuid)
-        if sku:
+        if sku := self._find_sku_data(self.proc_dictionary, proc_code, cpuid):
             self.vid = sku['vid']
             self.did = sku['did'][0]
             self.code = sku['code']
@@ -334,9 +334,7 @@ class Cfg:
             self.longname = sku['longname']
             self.req_pch = sku['req_pch']
 
-        # Detect PCH files
-        sku = self._find_sku_data(self.pch_dictionary, pch_code)
-        if sku:
+        if sku := self._find_sku_data(self.pch_dictionary, pch_code):
             self.pch_vid = sku['vid']
             self.pch_did = sku['did'][0]
             self.pch_code = sku['code']
@@ -360,10 +358,10 @@ class Cfg:
         sec_load_list = []
         tag_handlers = self._get_stage_parsers(Stage.DEVICE_CFG)
         for fxml in self.load_list:
-            self.logger.log_debug('[*] Loading primary config data: {}'.format(fxml.xml_file))
+            self.logger.log_debug(f'[*] Loading primary config data: {fxml.xml_file}')
             for config_root in self._get_config_iter(fxml):
                 for tag in tag_handlers:
-                    self.logger.log_debug('[*] Collecting {} configuration data...'.format(tag))
+                    self.logger.log_debug(f'[*] Collecting {tag} configuration data...')
                     for node in config_root.iter(tag):
                         sec_load_list.extend(tag_handlers[tag](node, fxml))
         self._load_sec_configs(sec_load_list, Stage.CORE_SUPPORT)

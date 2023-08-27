@@ -56,13 +56,12 @@ class memlock(BaseModule):
     def is_supported(self):
         # Workaround for Atom based processors.  Accessing this MSR on these systems
         # causes a GP fault and can't be caught in UEFI Shell.
-        if not self.cs.is_atom():
-            if self.cs.register_has_field('MSR_LT_LOCK_MEMORY', 'LT_LOCK'):
-                return True
-            else:
-                self.logger.log_important("'MSR_LT_LOCK_MEMORY.LT_LOCK' not defined for platform.  Skipping module.")
-        else:
+        if self.cs.is_atom():
             self.logger.log_important('Found an Atom based platform.  Skipping module.')
+        elif self.cs.register_has_field('MSR_LT_LOCK_MEMORY', 'LT_LOCK'):
+            return True
+        else:
+            self.logger.log_important("'MSR_LT_LOCK_MEMORY.LT_LOCK' not defined for platform.  Skipping module.")
         self.res = ModuleResult.NOTAPPLICABLE
         return False
 
@@ -81,7 +80,7 @@ class memlock(BaseModule):
                 self.cs.print_register('MSR_LT_LOCK_MEMORY', lt_lock_msr)
             lt_lock = self.cs.get_register_field('MSR_LT_LOCK_MEMORY', lt_lock_msr, 'LT_LOCK')
             self.logger.log("[*]   cpu{:d}: MSR_LT_LOCK_MEMORY[LT_LOCK] = {:x}".format(tid, lt_lock))
-            if 0 == lt_lock:
+            if lt_lock == 0:
                 status = True
         return status
 

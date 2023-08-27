@@ -191,9 +191,7 @@ class EFI_MODULE:
 
     def __str__(self) -> str:
         _ind = self.indent + DEF_INDENT
-        _s = ''
-        if self.MD5:
-            _s = f'\n{_ind}MD5   : {self.MD5}'
+        _s = f'\n{_ind}MD5   : {self.MD5}' if self.MD5 else ''
         if self.SHA1:
             _s += f'\n{_ind}SHA1  : {self.SHA1}'
         if self.SHA256:
@@ -299,7 +297,7 @@ def FvSum16(buffer: bytes) -> int:
     while i < blen:
         el16 = ord(buffer_str[2 * i]) | (ord(buffer_str[2 * i + 1]) << 8)
         sum16 = (sum16 + el16) & 0xffff
-        i = i + 1
+        i += 1
     return sum16
 
 
@@ -371,7 +369,7 @@ def GetFvHeader(buffer: bytes, off: int = 0) -> Tuple[int, int, int]:
     '''
     logger().log_hal(fv_header_str)
 
-    while not (numblocks == 0 and lenblock == 0):
+    while numblocks != 0 or lenblock != 0:
         fof += EFI_FV_BLOCK_MAP_ENTRY_SZ
         if (fof + EFI_FV_BLOCK_MAP_ENTRY_SZ) >= len(buffer):
             return (0, 0, 0)
@@ -400,11 +398,7 @@ def NextFwFile(FvImage: bytes, FvLength: int, fof: int, polarity: bool) -> Optio
         fsize = 0
     # if (fof + file_header_size) <= min(FvLength, len(FvImage)):
         # Check for a blank header
-        if polarity:
-            blank = b"\xff" * file_header_size
-        else:
-            blank = b"\x00" * file_header_size
-
+        blank = b"\xff" * file_header_size if polarity else b"\x00" * file_header_size
         if (blank == FvImage[cur_offset:cur_offset + file_header_size]):
             #next_offset = fof + 8
             cur_offset += 8
@@ -488,7 +482,11 @@ def align_image(image: bytes, size: int = 8, fill: bytes = b'\x00') -> bytes:
 def get_guid_bin(guid: UUID) -> bytes:
     values = str(guid).split('-')
     if [len(x) for x in values] == [8, 4, 4, 4, 12]:
-        values = values[0:3] + [values[3][0:2], values[3][2:4]] + [values[4][x:x + 2] for x in range(0, 12, 2)]
+        values = (
+            values[:3]
+            + [values[3][:2], values[3][2:4]]
+            + [values[4][x : x + 2] for x in range(0, 12, 2)]
+        )
         values = [int(x, 16) for x in values]
         return struct.pack('<LHHBBBBBBBB', *tuple(values))
     return b''

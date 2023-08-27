@@ -56,7 +56,10 @@ class OsHelper:
         self.helper = self.get_default_helper()
         if (not self.helper):
             os_system = platform.system()
-            raise OsHelperError("Could not load any helpers for '{}' environment (unsupported environment?)".format(os_system), errno.ENODEV)
+            raise OsHelperError(
+                f"Could not load any helpers for '{os_system}' environment (unsupported environment?)",
+                errno.ENODEV,
+            )
         else:
             if sys.version[0] == "2":
                 logger().log_warning("*****************************************************************************")
@@ -84,10 +87,11 @@ class OsHelper:
                 logger().log_debug(f"Unable to load helper: {helper}")
 
     def get_helper(self, name: str) -> Any:
-        ret = None
-        if name in self.avail_helpers:
-            ret = self.avail_helpers[name].get_helper()
-        return ret
+        return (
+            self.avail_helpers[name].get_helper()
+            if name in self.avail_helpers
+            else None
+        )
     
     def get_available_helpers(self) -> List[str]:
         return sorted(self.avail_helpers.keys())
@@ -118,17 +122,20 @@ class OsHelper:
         return platform.system().lower().startswith('efi') or platform.system().lower().startswith('uefi')
 
     def is_linux(self) -> bool:
-        return 'linux' == platform.system().lower()
+        return platform.system().lower() == 'linux'
 
     def is_windows(self) -> bool:
-        return 'windows' == platform.system().lower()
+        return platform.system().lower() == 'windows'
 
     def is_win8_or_greater(self) -> bool:
-        win8_or_greater = self.is_windows() and (self.os_release.startswith('8') or ('2008Server' in self.os_release) or ('2012Server' in self.os_release))
-        return win8_or_greater
+        return self.is_windows() and (
+            self.os_release.startswith('8')
+            or ('2008Server' in self.os_release)
+            or ('2012Server' in self.os_release)
+        )
 
     def is_macos(self) -> bool:
-        return 'darwin' == platform.system().lower()
+        return platform.system().lower() == 'darwin'
     
     def getcwd(self) -> str:
         return os.getcwd()

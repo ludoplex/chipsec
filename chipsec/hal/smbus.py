@@ -67,13 +67,12 @@ class SMBus(hal_base.HALBase):
             raise IOBARNotFoundError('IOBARAccessError: SMBUS_BASE')
 
     def get_SMBus_HCFG(self) -> int:
-        if self.cs.is_register_defined('SMBUS_HCFG'):
-            reg_value = self.cs.read_register('SMBUS_HCFG')
-            if self.logger.HAL:
-                self.cs.print_register('SMBUS_HCFG', reg_value)
-            return reg_value
-        else:
+        if not self.cs.is_register_defined('SMBUS_HCFG'):
             raise RegisterNotFoundError('RegisterNotFound: SMBUS_HCFG')
+        reg_value = self.cs.read_register('SMBUS_HCFG')
+        if self.logger.HAL:
+            self.cs.print_register('SMBUS_HCFG', reg_value)
+        return reg_value
 
     def display_SMBus_info(self) -> None:
         self.logger.log_hal(f'[smbus] SMBus Base Address: 0x{self.get_SMBus_Base_Address():04X}')
@@ -85,11 +84,10 @@ class SMBus(hal_base.HALBase):
     def is_SMBus_supported(self) -> bool:
         (did, vid) = self.cs.get_DeviceVendorID('SMBUS')
         self.logger.log_hal(f'[smbus] SMBus Controller (DID,VID) = (0x{did:04X},0x{vid:04X})')
-        if (0x8086 == vid):
+        if vid == 0x8086:
             return True
-        else:
-            self.logger.log_error(f'Unknown SMBus Controller (DID,VID) = (0x{did:04X},0x{vid:04X})')
-            return False
+        self.logger.log_error(f'Unknown SMBus Controller (DID,VID) = (0x{did:04X},0x{vid:04X})')
+        return False
 
     def is_SMBus_host_controller_enabled(self) -> int:
         hcfg = self.get_SMBus_HCFG()
@@ -110,10 +108,10 @@ class SMBus(hal_base.HALBase):
     def reset_SMBus_controller(self) -> bool:
         reg_value = self.cs.read_register('SMBUS_HCFG')
         self.cs.write_register('SMBUS_HCFG', reg_value | 0x08)
-        for i in range(SMBUS_POLL_COUNT):
-            if (self.cs.read_register('SMBUS_HCFG') & 0x08) == 0:
-                return True
-        return False
+        return any(
+            (self.cs.read_register('SMBUS_HCFG') & 0x08) == 0
+            for _ in range(SMBUS_POLL_COUNT)
+        )
 
     #
     # SMBus commands
@@ -122,28 +120,28 @@ class SMBus(hal_base.HALBase):
     # waits for SMBus to become ready
     def _is_smbus_ready(self) -> bool:
         busy = None
-        for i in range(SMBUS_POLL_COUNT):
+        for _ in range(SMBUS_POLL_COUNT):
             #time.sleep( SMBUS_POLL_SLEEP_INTERVAL )
             busy = self.cs.read_register_field(self.smb_reg_status, 'BUSY')
-            if 0 == busy:
+            if busy == 0:
                 return True
-        return 0 == busy
+        return busy == 0
 
     # waits for SMBus transaction to complete
     def _wait_for_cycle(self) -> bool:
         busy = None
-        for i in range(SMBUS_POLL_COUNT):
+        for _ in range(SMBUS_POLL_COUNT):
             #time.sleep( SMBUS_POLL_SLEEP_INTERVAL )
             sts = self.cs.read_register(self.smb_reg_status)
             busy = self.cs.get_register_field(self.smb_reg_status, sts, 'BUSY')
             intr = self.cs.get_register_field(self.smb_reg_status, sts, 'INTR')
             failed = self.cs.get_register_field(self.smb_reg_status, sts, 'FAILED')
-            if 0 == busy and 1 == intr:
+            if busy == 0 and intr == 1:
                 # if self.logger.HAL:
                 #    intr = chipsec.chipset.get_register_field( self.cs, self.smb_reg_status, sts, 'INTR' )
                 #    self.logger.log( "[smbus]: INTR = {:d}".format(intr) )
                 break
-            elif 1 == failed:
+            elif failed == 1:
                 #kill = 0
                 # if chipsec.chipset.register_has_field( self.cs, self.smb_reg_control, 'KILL' ):
                 #    kill = chipsec.chipset.read_register_field( self.cs, self.smb_reg_control, 'KILL' )
@@ -152,16 +150,26 @@ class SMBus(hal_base.HALBase):
                 return False
             else:
                 if self.cs.register_has_field(self.smb_reg_status, 'DEV_ERR'):
-                    if 1 == self.cs.get_register_field(self.smb_reg_status, sts, 'DEV_ERR'):
+                    if (
+                        self.cs.get_register_field(
+                            self.smb_reg_status, sts, 'DEV_ERR'
+                        )
+                        == 1
+                    ):
                         if self.logger.HAL:
                             self.logger.log_error("SMBus device error (invalid cmd, unclaimed cycle or time-out error)")
                         return False
                 if self.cs.register_has_field(self.smb_reg_status, 'BUS_ERR'):
-                    if 1 == self.cs.get_register_field(self.smb_reg_status, sts, 'BUS_ERR'):
+                    if (
+                        self.cs.get_register_field(
+                            self.smb_reg_status, sts, 'BUS_ERR'
+                        )
+                        == 1
+                    ):
                         if self.logger.HAL:
                             self.logger.log_error("SMBus bus error")
                         return False
-        return 0 == busy
+        return busy == 0
 
     def read_byte(self, target_address: int, offset: int) -> int:
         # clear status bits

@@ -286,8 +286,8 @@ class SPI(hal_base.HALBase):
         # Protected Range Limit corresponds to FLA bits 24:12
         limit = self.cs.get_register_field(pr_name, pr_j, 'PRL') << SPI_FLA_SHIFT
 
-        wpe = (0 != self.cs.get_register_field(pr_name, pr_j, 'WPE'))
-        rpe = (0 != self.cs.get_register_field(pr_name, pr_j, 'RPE'))
+        wpe = self.cs.get_register_field(pr_name, pr_j, 'WPE') != 0
+        rpe = self.cs.get_register_field(pr_name, pr_j, 'RPE') != 0
 
         # Check if this is a valid PRx config
         if wpe or rpe:
@@ -451,9 +451,8 @@ class SPI(hal_base.HALBase):
         if self.cs.is_register_defined('BC'):
             reg_value = self.cs.read_register('BC')
             self.cs.print_register('BC', reg_value)
-        else:
-            if self.logger.HAL:
-                self.logger.log_error("Could not locate the definition of 'BIOS Control' register..")
+        elif self.logger.HAL:
+            self.logger.log_error("Could not locate the definition of 'BIOS Control' register..")
 
     def disable_BIOS_write_protection(self) -> bool:
         if self.logger.HAL:
@@ -496,7 +495,7 @@ class SPI(hal_base.HALBase):
         hsfsts = 0
         cycle_done = False
 
-        for i in range(1000):
+        for _ in range(1000):
             # time.sleep(0.001)
             hsfsts = self.spi_reg_read(self.hsfs_off, 1)
 
@@ -614,7 +613,7 @@ class SPI(hal_base.HALBase):
                         self.logger.log(f'[spi] FDATA00 + 0x{fdata_idx * 4:x}: 0x{dword_value:x}')
                     buf += struct.pack("I", dword_value)
 
-        if (0 != r):
+        if r != 0:
             self.logger.log_hal(f'[spi] Reading remaining 0x{r:x} bytes from 0x{spi_fla + n * dbc:x}')
             if not self._send_spi_cycle(HSFCTL_READ_CYCLE, r - 1, spi_fla + n * dbc):
                 self.logger.log_error("SPI flash read failed")
@@ -643,8 +642,7 @@ class SPI(hal_base.HALBase):
         write_ok = True
         data_byte_count = len(buf)
         dbc = 4
-        n = data_byte_count // dbc
-        r = data_byte_count % dbc
+        n, r = divmod(data_byte_count, dbc)
         if self.logger.UTIL_TRACE or self.logger.HAL:
             self.logger.log(f'[spi] Writing 0x{data_byte_count:x} bytes to SPI at FLA = 0x{spi_fla:x} (in {n:d} 0x{dbc:x}-byte chunks + 0x{r:x}-byte remainder)')
 
@@ -664,7 +662,7 @@ class SPI(hal_base.HALBase):
                 write_ok = False
                 self.logger.log_error("SPI flash write cycle failed")
 
-        if (0 != r):
+        if r != 0:
             if self.logger.UTIL_TRACE or self.logger.HAL:
                 self.logger.log(f'[spi] Writing remaining 0x{r:x} bytes to FLA = 0x{spi_fla + n * dbc:x}')
             dword_value = 0
@@ -779,15 +777,14 @@ class SPI(hal_base.HALBase):
 
     def get_SPI_JEDEC_ID(self) -> int:
 
-        if self.cs.register_has_field('HSFS', 'FCYCLE'):
-            self.check_hardware_sequencing()
-
-            if not self._send_spi_cycle(HSFCTL_JEDEC_CYCLE, 4, 0):
-                self.logger.log_error('SPI JEDEC ID cycle failed')
-            id = self.spi_reg_read(self.fdata0_off)
-        else:
+        if not self.cs.register_has_field('HSFS', 'FCYCLE'):
             return False
 
+        self.check_hardware_sequencing()
+
+        if not self._send_spi_cycle(HSFCTL_JEDEC_CYCLE, 4, 0):
+            self.logger.log_error('SPI JEDEC ID cycle failed')
+        id = self.spi_reg_read(self.fdata0_off)
         return ((id & 0xFF) << 16) | (id & 0xFF00) | ((id >> 16) & 0xFF)
 
     def get_SPI_JEDEC_ID_decoded(self) -> Tuple[int, str, str]:

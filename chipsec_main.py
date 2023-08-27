@@ -94,13 +94,12 @@ def parse_args(argv: Sequence[str]) -> Optional[Dict[str, Any]]:
 
     par = vars(parser.parse_args(argv))
 
-    if par['help']:
-        if par['_show_banner']:
-            print_banner(argv, defines.get_version(), defines.get_message())
-        parser.print_help()
-        return None
-    else:
+    if not par['help']:
         return par
+    if par['_show_banner']:
+        print_banner(argv, defines.get_version(), defines.get_message())
+    parser.print_help()
+    return None
 
 
 class ChipsecMain:
@@ -108,7 +107,7 @@ class ChipsecMain:
     def __init__(self, switches, argv):
         self.logger = logger()
         self.CHIPSEC_FOLDER = os.path.abspath(chipsec.file.get_main_dir())
-        self.PYTHON_64_BITS = True if (sys.maxsize > 2**32) else False
+        self.PYTHON_64_BITS = sys.maxsize > 2**32
         self.Import_Path = "chipsec.modules."
         self.Modules_Path = os.path.join(self.CHIPSEC_FOLDER, "chipsec", "modules")
         self.Loaded_Modules = []
@@ -128,12 +127,14 @@ class ChipsecMain:
     def import_module(self, module_path):
         module = None
         if not self.MODPATH_RE.match(module_path):
-            self.logger.log_error("Invalid module path: {}".format(module_path))
+            self.logger.log_error(f"Invalid module path: {module_path}")
         else:
             try:
                 module = importlib.import_module(module_path)
             except BaseException as msg:
-                self.logger.log_error("Exception occurred during import of {}: '{}'".format(module_path, str(msg)))
+                self.logger.log_error(
+                    f"Exception occurred during import of {module_path}: '{str(msg)}'"
+                )
                 if self.logger.DEBUG:
                     self.logger.log_bad(traceback.format_exc())
                 if self.failfast:
@@ -144,7 +145,7 @@ class ChipsecMain:
         run_it = True
         module_tags, metadata_tags = module.get_tags()
         if len(metadata_tags) > 0:
-            self.logger.log("[*] Metadata tags: {}".format(metadata_tags))
+            self.logger.log(f"[*] Metadata tags: {metadata_tags}")
         if len(self.USER_MODULE_TAGS) > 0 or self._list_tags:
             run_it = False
             for mt in module_tags:
@@ -161,7 +162,7 @@ class ChipsecMain:
             if not modx.do_import():
                 return module_common.ModuleResult.ERROR
             if self.logger.DEBUG and not self._list_tags:
-                self.logger.log("[*] Module path: {}".format(modx.get_location()))
+                self.logger.log(f"[*] Module path: {modx.get_location()}")
 
             if self.verify_module_tags(modx):
                 result = modx.run(module_argv)
@@ -170,7 +171,9 @@ class ChipsecMain:
         except BaseException as msg:
             if self.logger.DEBUG:
                 self.logger.log_bad(traceback.format_exc())
-            self.logger.log_error("Exception occurred during {}.run(): '{}'".format(modx.get_name(), str(msg)))
+            self.logger.log_error(
+                f"Exception occurred during {modx.get_name()}.run(): '{str(msg)}'"
+            )
             raise msg
         return result
 
@@ -222,7 +225,7 @@ class ChipsecMain:
 
     def load_modules_from_path(self, from_path, recursive=True):
         if self.logger.DEBUG:
-            self.logger.log("[*] Path: {}".format(os.path.abspath(from_path)))
+            self.logger.log(f"[*] Path: {os.path.abspath(from_path)}")
         for dirname, subdirs, mod_fnames in os.walk(os.path.abspath(from_path)):
             if not recursive:
                 while len(subdirs) > 0:
@@ -238,7 +241,9 @@ class ChipsecMain:
         # Load modules common to all supported platforms
         #
         common_path = os.path.join(self.Modules_Path, 'common')
-        self.logger.log("[*] loading common modules from \"{}\" ..".format(common_path.replace(os.getcwd(), '.')))
+        self.logger.log(
+            f"""[*] loading common modules from \"{common_path.replace(os.getcwd(), '.')}\" .."""
+        )
         self.load_modules_from_path(common_path)
         #
         # Step 2.
@@ -246,20 +251,23 @@ class ChipsecMain:
         #
         chipset_path = os.path.join(self.Modules_Path, self._cs.Cfg.code.lower())
         if (chipset.CHIPSET_CODE_UNKNOWN != self._cs.Cfg.code) and os.path.exists(chipset_path):
-            self.logger.log("[*] loading platform specific modules from \"{}\" ..".format(
-                chipset_path.replace(os.getcwd(), '.')))
+            self.logger.log(
+                f"""[*] loading platform specific modules from \"{chipset_path.replace(os.getcwd(), '.')}\" .."""
+            )
             self.load_modules_from_path(chipset_path)
         else:
             self.logger.log("[*] No platform specific modules to load")
         #
         # Step 3.
         # Enumerate all modules from the root module directory
-        self.logger.log("[*] loading modules from \"{}\" ..".format(self.Modules_Path.replace(os.getcwd(), '.')))
+        self.logger.log(
+            f"""[*] loading modules from \"{self.Modules_Path.replace(os.getcwd(), '.')}\" .."""
+        )
         self.load_modules_from_path(self.Modules_Path, False)
 
     def load_user_modules(self):
         for import_path in self.IMPORT_PATHS:
-            self.logger.log("[*] loading modules from \"{}\" ..".format(import_path))
+            self.logger.log(f'[*] loading modules from \"{import_path}\" ..')
             self.load_modules_from_path(import_path)
 
     def clear_loaded_modules(self):
@@ -269,7 +277,7 @@ class ChipsecMain:
         if self.Loaded_Modules == []:
             self.logger.log("No modules have been loaded")
         for (modx, modx_argv) in self.Loaded_Modules:
-            self.logger.log("[+] loaded {}".format(modx))
+            self.logger.log(f"[+] loaded {modx}")
 
     def run_loaded_modules(self):
         results = ChipsecResults(self._return_codes)
@@ -298,7 +306,7 @@ class ChipsecMain:
 
             # Module uses the old API  display warning and try to run anyways
             if result == module_common.ModuleResult.DEPRECATED:
-                self.logger.log_error('Module {} does not inherit BaseModule class'.format(str(modx)))
+                self.logger.log_error(f'Module {str(modx)} does not inherit BaseModule class')
 
             # Populate results
             test_result.end_module(module_common.getModuleResultName(result), modx_argv if modx_argv else None)
@@ -328,7 +336,7 @@ class ChipsecMain:
         else:
             self.logger.log("[*] Available tags are:")
             for at in self.AVAILABLE_TAGS:
-                self.logger.log("    {}".format(at))
+                self.logger.log(f"    {at}")
 
         return results.get_return_code()
 
@@ -375,16 +383,17 @@ class ChipsecMain:
 
     def properties(self):
         ret = OrderedDict()
-        ret["OS"] = "{} {} {} {}".format(self._cs.helper.os_system, self._cs.helper.os_release,
-                                         self._cs.helper.os_version, self._cs.helper.os_machine)
-        ret["Python"] = "Python {}".format(platform.python_version())
+        ret[
+            "OS"
+        ] = f"{self._cs.helper.os_system} {self._cs.helper.os_release} {self._cs.helper.os_version} {self._cs.helper.os_machine}"
+        ret["Python"] = f"Python {platform.python_version()}"
         ret["Platform"] = "{}, CPUID: {}, VID: {:04X}, DID: {:04X}, RID: {:02X}".format(self._cs.Cfg.longname, self._cs.Cfg.cpuid, self._cs.Cfg.vid,
                                                                                         self._cs.Cfg.did, self._cs.Cfg.rid)
         if not self._cs.is_atom():
             ret["PCH"] = "{}, VID: {:04X}, DID: {:04X} RID: {:02X}".format(self._cs.Cfg.pch_longname, self._cs.Cfg.pch_vid,
                                                                            self._cs.Cfg.pch_did, self._cs.Cfg.pch_rid)
-        ret["Version"] = "{}".format(self.version)
-        ret["Message"] = "{}".format(self.message)
+        ret["Version"] = f"{self.version}"
+        ret["Message"] = f"{self.message}"
         return ret
 
     ##################################################################################
@@ -402,7 +411,7 @@ class ChipsecMain:
         try:
             self._cs.init(self._platform, self._pch, self._helper, not self._no_driver, self._load_config, self._ignore_platform)
         except UnknownChipsetError as msg:
-            self.logger.log_error("Platform is not supported ({}).".format(str(msg)))
+            self.logger.log_error(f"Platform is not supported ({str(msg)}).")
             if self._ignore_platform:
                 self.logger.log_error('To specify a cpu please use -p command-line option')
                 self.logger.log_error('To specify a pch please use --pch command-line option\n')
@@ -428,11 +437,11 @@ class ChipsecMain:
 
         if self._show_banner:
             print_banner_properties(self._cs, defines.os_version())
-        
+
         self.logger.log(" ")
 
         if self.logger.DEBUG:
-            self.logger.log("[*] Running from {}".format(os.getcwd()))
+            self.logger.log(f"[*] Running from {os.getcwd()}")
 
         self.main_return = 0
         if self._module:
@@ -447,9 +456,7 @@ class ChipsecMain:
         return self.main_return
 
 def run(cli_cmd: str = '') -> int:
-    cli_cmds = []
-    if cli_cmd:
-        cli_cmds = cli_cmd.strip().split(' ')
+    cli_cmds = cli_cmd.strip().split(' ') if cli_cmd else []
     return main(cli_cmds)
 
 def main(argv: Sequence[str] = sys.argv[1:]) -> int:

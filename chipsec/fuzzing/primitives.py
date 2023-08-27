@@ -295,7 +295,7 @@ class random_data(base_primitive):
 
         # reset the value and generate a random string of the determined length.
         self.value = b""
-        for i in range(length):
+        for _ in range(length):
             self.value += struct.pack("B", random.randint(0, 255))
 
         # increment the mutation count.
@@ -394,7 +394,7 @@ class string(base_primitive):
 
         # add this specific primitives repitition values to the unique fuzz library.
         self.this_library = \
-            [
+                [
                 self.value * 2,
                 self.value * 10,
                 self.value * 100,
@@ -408,7 +408,7 @@ class string(base_primitive):
         # if the fuzz library has not yet been initialized, do so with all the global values.
         if not self.fuzz_library:
             string.fuzz_library = \
-                [
+                    [
                     # omission.
                     "",
 
@@ -507,25 +507,23 @@ class string(base_primitive):
 
             # if the optional file '.fuzz_strings' is found, parse each line as a new entry for the fuzz library.
             try:
-                fh = open(".fuzz_strings", "r")
+                with open(".fuzz_strings", "r") as fh:
+                    for fuzz_string in fh:
+                        fuzz_string = fuzz_string.rstrip("\r\n")
 
-                for fuzz_string in fh.readlines():
-                    fuzz_string = fuzz_string.rstrip("\r\n")
+                        if fuzz_string != "":
+                            string.fuzz_library.append(fuzz_string)
 
-                    if fuzz_string != "":
-                        string.fuzz_library.append(fuzz_string)
-
-                fh.close()
             except:
                 pass
 
         # delete strings which length is greater than max_len.
         if max_len > 0:
             if any(len(s) > max_len for s in self.this_library):
-                self.this_library = list(set([s[:max_len] for s in self.this_library]))
+                self.this_library = list({s[:max_len] for s in self.this_library})
 
             if any(len(s) > max_len for s in self.fuzz_library):
-                self.fuzz_library = list(set([s[:max_len] for s in self.fuzz_library]))
+                self.fuzz_library = list({s[:max_len] for s in self.fuzz_library})
 
     def add_long_strings(self, sequence):
         '''
@@ -663,37 +661,34 @@ class bit_field(base_primitive):
             # add all possible values.
             for i in range(0, self.max_num):
                 self.fuzz_library.append(i)
+        elif isinstance(value, (list, tuple)):
+            # Use the supplied values as the fuzz library.
+            for val in value:
+                self.fuzz_library.append(val)
         else:
-            if isinstance(value, (list, tuple)):
-                # Use the supplied values as the fuzz library.
-                for val in value:
-                    self.fuzz_library.append(val)
-            else:
-                # try only "smart" values.
-                self.add_integer_boundaries(0)
-                self.add_integer_boundaries(self.max_num // 2)
-                self.add_integer_boundaries(self.max_num // 3)
-                self.add_integer_boundaries(self.max_num // 4)
-                self.add_integer_boundaries(self.max_num // 8)
-                self.add_integer_boundaries(self.max_num // 16)
-                self.add_integer_boundaries(self.max_num // 32)
-                self.add_integer_boundaries(self.max_num)
+            # try only "smart" values.
+            self.add_integer_boundaries(0)
+            self.add_integer_boundaries(self.max_num // 2)
+            self.add_integer_boundaries(self.max_num // 3)
+            self.add_integer_boundaries(self.max_num // 4)
+            self.add_integer_boundaries(self.max_num // 8)
+            self.add_integer_boundaries(self.max_num // 16)
+            self.add_integer_boundaries(self.max_num // 32)
+            self.add_integer_boundaries(self.max_num)
 
         # if the optional file '.fuzz_ints' is found, parse each line as a new entry for the fuzz library.
         try:
-            fh = open(".fuzz_ints", "r")
+            with open(".fuzz_ints", "r") as fh:
+                for fuzz_int in fh:
+                    # convert the line into an integer, continue on failure.
+                    try:
+                        fuzz_int = int(fuzz_int, 16)
+                    except:
+                        continue
 
-            for fuzz_int in fh.readlines():
-                # convert the line into an integer, continue on failure.
-                try:
-                    fuzz_int = int(fuzz_int, 16)
-                except:
-                    continue
+                    if fuzz_int < self.max_num:
+                        self.fuzz_library.append(fuzz_int)
 
-                if fuzz_int < self.max_num:
-                    self.fuzz_library.append(fuzz_int)
-
-            fh.close()
         except:
             pass
 
@@ -723,16 +718,9 @@ class bit_field(base_primitive):
         #
 
         if self.format == "binary":
-            bit_stream = ""
+            bit_stream = "0" * (8 - (self.width % 8)) if self.width % 8 != 0 else ""
+            bit_stream += self.to_binary()
             rendered = b""
-
-            # pad the bit stream to the next byte boundary.
-            if self.width % 8 == 0:
-                bit_stream += self.to_binary()
-            else:
-                bit_stream = "0" * (8 - (self.width % 8))
-                bit_stream += self.to_binary()
-
             # convert the bit stream from a string of bits into raw bytes.
             for i in range(len(bit_stream) // 8):
                 chunk = bit_stream[8 * i:8 * i + 8]
@@ -744,27 +732,20 @@ class bit_field(base_primitive):
 
             self.rendered = rendered
 
-        #
-        # ascii formatting.
-        #
+        elif self.signed and self.to_binary()[0] == "1":
+            max_num = self.to_decimal("1" + "0" * (self.width - 1))
+
+            # mask off the sign bit.
+            val = self.value & self.to_decimal("1" * (self.width - 1))
+
+            # account for the fact that the negative scale works backwards.
+            val = max_num - val - 1
+
+            # toss in the negative sign.
+            self.rendered = "%d" % ~val
 
         else:
-            # if the sign flag is raised and we are dealing with a signed integer (first bit is 1).
-            if self.signed and self.to_binary()[0] == "1":
-                max_num = self.to_decimal("1" + "0" * (self.width - 1))
-
-                # mask off the sign bit.
-                val = self.value & self.to_decimal("1" * (self.width - 1))
-
-                # account for the fact that the negative scale works backwards.
-                val = max_num - val - 1
-
-                # toss in the negative sign.
-                self.rendered = "%d" % ~val
-
-            # unsigned integer or positive signed integer.
-            else:
-                self.rendered = "%d" % self.value
+            self.rendered = "%d" % self.value
         return self.rendered
 
     def to_binary(self, number=None, bit_count=None):
@@ -814,7 +795,7 @@ class byte (bit_field):
     def __init__(self, value, endian="<", format="binary", signed=False, full_range=False, fuzzable=True, name=None):
         self.s_type = "byte"
         if not isinstance(value, (int, list, tuple)):
-            value = struct.unpack(endian + "B", value)[0]
+            value = struct.unpack(f"{endian}B", value)[0]
 
         bit_field.__init__(self, value, 8, None, endian, format, signed, full_range, fuzzable, name)
 
@@ -824,7 +805,7 @@ class word (bit_field):
     def __init__(self, value, endian="<", format="binary", signed=False, full_range=False, fuzzable=True, name=None):
         self.s_type = "word"
         if not isinstance(value, (int, list, tuple)):
-            value = struct.unpack(endian + "H", value)[0]
+            value = struct.unpack(f"{endian}H", value)[0]
 
         bit_field.__init__(self, value, 16, None, endian, format, signed, full_range, fuzzable, name)
 
@@ -834,7 +815,7 @@ class dword (bit_field):
     def __init__(self, value, endian="<", format="binary", signed=False, full_range=False, fuzzable=True, name=None):
         self.s_type = "dword"
         if not isinstance(value, (int, list, tuple)):
-            value = struct.unpack(endian + "L", value)[0]
+            value = struct.unpack(f"{endian}L", value)[0]
 
         bit_field.__init__(self, value, 32, None, endian, format, signed, full_range, fuzzable, name)
 
@@ -844,6 +825,6 @@ class qword (bit_field):
     def __init__(self, value, endian="<", format="binary", signed=False, full_range=False, fuzzable=True, name=None):
         self.s_type = "qword"
         if not isinstance(value, (int, list, tuple)):
-            value = struct.unpack(endian + "Q", value)[0]
+            value = struct.unpack(f"{endian}Q", value)[0]
 
         bit_field.__init__(self, value, 64, None, endian, format, signed, full_range, fuzzable, name)

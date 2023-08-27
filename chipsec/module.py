@@ -86,13 +86,12 @@ class Module:
             if isinstance(self.mod_obj, chipsec.module_common.BaseModule):
                 if self.mod_obj.is_supported():
                     result = self.mod_obj.run(module_argv)
+                elif self.mod_obj.res == ModuleResult.NOTAPPLICABLE:
+                    result = ModuleResult.NOTAPPLICABLE
+                    self.logger.log(f'Skipping module {self.name} since it is not applicable in this environment and/or platform')
                 else:
-                    if self.mod_obj.res == ModuleResult.NOTAPPLICABLE:
-                        result = ModuleResult.NOTAPPLICABLE
-                        self.logger.log(f'Skipping module {self.name} since it is not applicable in this environment and/or platform')
-                    else:
-                        result = ModuleResult.SKIPPED
-                        self.logger.log(f'Skipping module {self.name} since it is not supported in this environment and/or platform')
+                    result = ModuleResult.SKIPPED
+                    self.logger.log(f'Skipping module {self.name} since it is not supported in this environment and/or platform')
 
         return result
 
@@ -108,9 +107,9 @@ class Module:
                     if class_name.startswith('.'):
                         class_name = class_name.replace('.', '')
                     for iname, iref in self.module.__dict__.items():
-                        if isinstance(iref, type):
-                            if issubclass(iref, chipsec.module_common.BaseModule):
-                                if iname.lower() == class_name.lower():
+                        if iname.lower() == class_name.lower():
+                            if isinstance(iref, type):
+                                if issubclass(iref, chipsec.module_common.BaseModule):
                                     self.mod_obj = iref()
                     if self.mod_obj is None:
                         result = ModuleResult.DEPRECATED

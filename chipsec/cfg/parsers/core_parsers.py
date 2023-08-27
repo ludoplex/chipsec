@@ -78,8 +78,6 @@ class PlatformInfo(BaseConfigParser):
         return Stage.GET_INFO
 
     def handle_info(self, et_node, stage_data):
-        platform = ''
-        req_pch = None
         family = None
         proc_code = None
         pch_code = None
@@ -89,10 +87,8 @@ class PlatformInfo(BaseConfigParser):
 
         # Extract platform information. If no platform found it is just a device entry.
         cfg_info = _config_convert_data(stage_data.configuration)
-        if 'platform' in cfg_info:
-            platform = cfg_info['platform']
-        if 'req_pch' in cfg_info:
-            req_pch = cfg_info['req_pch']
+        platform = cfg_info['platform'] if 'platform' in cfg_info else ''
+        req_pch = cfg_info['req_pch'] if 'req_pch' in cfg_info else None
         if platform and platform.lower().startswith('pch'):
             pch_code = platform.upper()
         else:
@@ -162,8 +158,6 @@ class CoreConfig(BaseConfigParser):
                 self.cfg.CONFIG_PCI[name]['did'] = dev_attr['did'][0]
 
     def handle_pci(self, et_node, stage_data):
-        ret_val = []
-
         for dev in et_node.iter('device'):
             dev_attr = _config_convert_data(dev, True)
             if 'name' not in dev_attr:
@@ -172,7 +166,7 @@ class CoreConfig(BaseConfigParser):
             self._process_pci_dev(stage_data.vid_str, dev_name, dev_attr)
             self.logger.log_debug(f"    + {dev_attr['name']:16}: {dev_attr}")
 
-        return ret_val
+        return []
 
     def handle_controls(self, et_node, stage_data):
         return self._add_entry_simple(self.cfg.CONTROLS, stage_data, et_node, 'control')
@@ -193,7 +187,6 @@ class CoreConfig(BaseConfigParser):
         return self._add_entry_simple(self.cfg.MMIO_BARS, stage_data, et_node, 'bar')
 
     def handle_registers(self, et_node, stage_data):
-        ret_val = []
         dest = self.cfg.REGISTERS
         for reg in et_node.iter('register'):
             reg_attr = _config_convert_data(reg)
@@ -240,10 +233,9 @@ class CoreConfig(BaseConfigParser):
             reg_attr['FIELDS'] = reg_fields
             self.cfg.REGISTERS[reg_name] = reg_attr
             self.logger.log_debug(f'    + {reg_name:16}: {reg_attr}')
-        return ret_val
+        return []
 
     def _add_entry_simple(self, dest, stage_data, et_node, node_name):
-        ret_val = []
         for node in et_node.iter(node_name):
             attrs = _config_convert_data(node)
             if 'name' not in attrs:
@@ -258,7 +250,7 @@ class CoreConfig(BaseConfigParser):
                 attrs['desc'] = attrs['name']
             dest[attrs['name']] = attrs
             self.logger.log_debug(f"    + {attrs['name']:16}: {attrs}")
-        return ret_val
+        return []
 
 
 parsers = [PlatformInfo, CoreConfig]

@@ -88,7 +88,7 @@ class smm_dma(BaseModule):
         if self.cs.register_has_field('MSR_BIOS_DONE', 'IA_UNTRUSTED'):
             ia_untrusted = self.cs.read_register_field('MSR_BIOS_DONE', 'IA_UNTRUSTED')
 
-        if (tseg_base_lock and tseg_limit_lock) or (0 != ia_untrusted):
+        if (tseg_base_lock and tseg_limit_lock) or ia_untrusted != 0:
             self.logger.log_good("TSEG range is locked")
             return ModuleResult.PASSED
         else:
@@ -108,20 +108,19 @@ class smm_dma(BaseModule):
             self.logger.log("[*] SMRR is not supported\n")
 
         self.logger.log("[*] Checking TSEG range configuration..")
-        if (0 == smram_base) and (0 == smram_limit):
+        if smram_base == 0 == smram_limit:
             res = ModuleResult.WARNING
             self.logger.log_warning("TSEG is properly configured but can't determine if it covers entire SMRAM")
-        else:
-            if (tseg_base <= smram_base) and (smram_limit <= tseg_limit):
-                self.logger.log_good("TSEG range covers entire SMRAM")
-                if self.check_tseg_locks() == ModuleResult.PASSED:
-                    res = ModuleResult.PASSED
-                    self.logger.log_passed("TSEG is properly configured. SMRAM is protected from DMA attacks")
-                else:
-                    self.logger.log_failed("TSEG is properly configured, but the configuration is not locked.")
+        elif (tseg_base <= smram_base) and (smram_limit <= tseg_limit):
+            self.logger.log_good("TSEG range covers entire SMRAM")
+            if self.check_tseg_locks() == ModuleResult.PASSED:
+                res = ModuleResult.PASSED
+                self.logger.log_passed("TSEG is properly configured. SMRAM is protected from DMA attacks")
             else:
-                self.logger.log_bad("TSEG range doesn't cover entire SMRAM")
-                self.logger.log_failed("TSEG is not properly configured. Portions of SMRAM may be vulnerable to DMA attacks")
+                self.logger.log_failed("TSEG is properly configured, but the configuration is not locked.")
+        else:
+            self.logger.log_bad("TSEG range doesn't cover entire SMRAM")
+            self.logger.log_failed("TSEG is not properly configured. Portions of SMRAM may be vulnerable to DMA attacks")
 
         return res
 

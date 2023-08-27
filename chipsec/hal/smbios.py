@@ -277,7 +277,10 @@ class SMBIOS(hal_base.HALBase):
         if ep_data.Anchor != SMBIOS_2_x_SIG:
             logger().log_hal('- Invalid signature')
             return None
-        if not (ep_data.EntryLen == SMBIOS_2_x_ENTRY_SIZE or ep_data.EntryLen == SMBIOS_2_x_ENTRY_SIZE_OLD):
+        if ep_data.EntryLen not in [
+            SMBIOS_2_x_ENTRY_SIZE,
+            SMBIOS_2_x_ENTRY_SIZE_OLD,
+        ]:
             logger().log_hal('- Invalid structure size')
             return None
         if ep_data.IntAnchor != SMBIOS_2_x_INT_SIG:
@@ -301,7 +304,7 @@ class SMBIOS(hal_base.HALBase):
         if ep_data.Anchor != SMBIOS_3_x_SIG:
             logger().log_hal('- Invalid signature')
             return None
-        if not (ep_data.EntryLen == SMBIOS_3_x_ENTRY_SIZE):
+        if ep_data.EntryLen != SMBIOS_3_x_ENTRY_SIZE:
             logger().log_hal('- Invalid structure size')
             return None
         if ep_data.MaxSize == 0 or ep_data.TableAddr == 0:

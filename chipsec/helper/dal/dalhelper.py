@@ -135,9 +135,9 @@ class DALHelper(Helper):
         ie_thread = self.find_thread()
         self.base.threads[ie_thread].dport(0xCF8, self.pci_addr(bus, device, function, address))
         value = (self.base.threads[ie_thread].dport(0xCFC) >> ((address % 4) * 8))
-        if 1 == size:
+        if size == 1:
             value &= 0xFF
-        elif 2 == size:
+        elif size == 2:
             value &= 0xFFFF
         return value.ToUInt32()
 
@@ -153,10 +153,7 @@ class DALHelper(Helper):
     #
 
     def read_phys_mem(self, phys_address: int, length: int, bytewise: bool = False) -> bytes:
-        if bytewise:
-            width = 1
-        else:
-            width = 8
+        width = 1 if bytewise else 8
         out_buf = (c_char * length)()
         ptr = 0
         format = {1: 'B', 2: 'H', 4: 'L', 8: 'Q'}
@@ -165,14 +162,11 @@ class DALHelper(Helper):
                 v = self.base.threads[self.find_thread()].mem(itpii.Address((phys_address + ptr), itpii.AddressType.physical), width)
                 struct.pack_into(format[width], out_buf, ptr, v.ToUInt64())
                 ptr += width
-            width = width // 2
+            width //= 2
         return b''.join(out_buf)
 
     def write_phys_mem(self, phys_address: int, length: int, buf: bytes, bytewise: bool = False) -> int:
-        if bytewise:
-            width = 1
-        else:
-            width = 8
+        width = 1 if bytewise else 8
         ptr = 0
         format = {1: 'B', 2: 'H', 4: 'L', 8: 'Q'}
         while width >= 1:
@@ -180,7 +174,7 @@ class DALHelper(Helper):
                 v = struct.unpack_from(format[width], buf, ptr)
                 self.base.threads[self.find_thread()].mem(itpii.Address((phys_address + ptr), itpii.AddressType.physical), width, v[0])
                 ptr += width
-            width = width // 2
+            width //= 2
         return 1
 
     def va2pa(self, va):
@@ -247,19 +241,18 @@ class DALHelper(Helper):
             logger().log_debug(f'[WARNING] Selected thread [{cpu_thread_id:d}] was disabled, using [{en_thread:d}].')
             cpu_thread_id = en_thread
         if cr_number == 0:
-            val = self.base.threads[cpu_thread_id].state.regs.cr0.value
+            return self.base.threads[cpu_thread_id].state.regs.cr0.value
         elif cr_number == 2:
-            val = self.base.threads[cpu_thread_id].state.regs.cr2.value
+            return self.base.threads[cpu_thread_id].state.regs.cr2.value
         elif cr_number == 3:
-            val = self.base.threads[cpu_thread_id].state.regs.cr3.value
+            return self.base.threads[cpu_thread_id].state.regs.cr3.value
         elif cr_number == 4:
-            val = self.base.threads[cpu_thread_id].state.regs.cr4.value
+            return self.base.threads[cpu_thread_id].state.regs.cr4.value
         elif cr_number == 8:
-            val = self.base.threads[cpu_thread_id].state.regs.cr8.value
+            return self.base.threads[cpu_thread_id].state.regs.cr8.value
         else:
             logger().log_debug(f'[ERROR] Selected CR{cr_number:d} is not supported.')
-            val = 0
-        return val
+            return 0
 
     def write_cr(self, cpu_thread_id: int, cr_number: int, value: int) -> int:
         if not self.base.threads[cpu_thread_id].isenabled:
@@ -331,17 +324,16 @@ class DALHelper(Helper):
 
     def read_mmio_reg(self, phys_address: int, size: int) -> int:
         out_buf = self.read_phys_mem(phys_address, size)
-        if size == 8:
-            value = struct.unpack('=Q', out_buf[:size])[0]
-        elif size == 4:
-            value = struct.unpack('=I', out_buf[:size])[0]
+        if size == 1:
+            return struct.unpack('=B', out_buf[:size])[0]
         elif size == 2:
-            value = struct.unpack('=H', out_buf[:size])[0]
-        elif size == 1:
-            value = struct.unpack('=B', out_buf[:size])[0]
+            return struct.unpack('=H', out_buf[:size])[0]
+        elif size == 4:
+            return struct.unpack('=I', out_buf[:size])[0]
+        elif size == 8:
+            return struct.unpack('=Q', out_buf[:size])[0]
         else:
-            value = 0
-        return value
+            return 0
 
     def write_mmio_reg(self, phys_address: int, size: int, value: int) -> int:
         if size == 8:
