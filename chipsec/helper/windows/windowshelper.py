@@ -200,7 +200,7 @@ def getEFIvariables_NtEnumerateSystemEnvironmentValuesEx2(nvram_buf: bytes) -> D
     bsize = len(buffer)
     header_fmt = "<IIII16s"
     header_size = struct.calcsize(header_fmt)
-    variables = dict()
+    variables = {}
     off = 0
     while (off + header_size) < bsize:
         efi_var_hdr = EFI_HDR_WIN(*struct.unpack_from(header_fmt, buffer[off: off + header_size]))
@@ -218,7 +218,7 @@ def getEFIvariables_NtEnumerateSystemEnvironmentValuesEx2(nvram_buf: bytes) -> D
         #                                off, buf,         hdr,         data,         guid,                           attrs
         variables[efi_var_name].append((off, efi_var_buf, efi_var_hdr, efi_var_data, EFI_GUID_STR(efi_var_hdr.guid), efi_var_hdr.Attributes))
 
-        if 0 == efi_var_hdr.Size:
+        if efi_var_hdr.Size == 0:
             break
         off = next_var_offset
 
@@ -246,9 +246,9 @@ class WindowsHelper(Helper):
         self.os_machine = platform.machine()
         self.os_uname = platform.uname()
         self.name = "WindowsHelper"
-        if "windows" == self.os_system.lower():
+        if self.os_system.lower() == "windows":
             win_ver = f"windows_{self.os_machine.lower()}"
-            if ("5" == self.os_release):
+            if self.os_release == "5":
                 win_ver = "winxp"
             logger().log_debug(f'[helper] OS: {self.os_system} {self.os_release} {self.os_version}')
 
@@ -463,7 +463,7 @@ class WindowsHelper(Helper):
         return self.driver_handle
 
     def check_driver_handle(self) -> bool:
-        if (0x6 == kernel32.GetLastError()):
+        if kernel32.GetLastError() == 0x6:
             win32api.CloseHandle(self.driver_handle)
             self.driver_handle = None
             self._get_driver_handle()
@@ -522,41 +522,38 @@ class WindowsHelper(Helper):
         hi = (phys_address >> 32) & 0xFFFFFFFF
         lo = phys_address & 0xFFFFFFFF
         in_buf = struct.pack('3I', hi, lo, length) + stringtobytes(buf)
-        out_buf = self._ioctl(IOCTL_WRITE_PHYSMEM, in_buf, 4)
-        return out_buf
+        return self._ioctl(IOCTL_WRITE_PHYSMEM, in_buf, 4)
 
     # @TODO: Temporarily the same as read_phys_mem for compatibility
     def read_mmio_reg(self, phys_address: int, size: int) -> int:
-        out_size = size
         logger().log_debug(f'[helper] -> read_mmio_reg( phys_address=0x{phys_address:X}, size={size} )')
         in_buf = struct.pack('3I', (phys_address >> 32) & 0xFFFFFFFF, phys_address & 0xFFFFFFFF, size)
+        out_size = size
         out_buf = self._ioctl(IOCTL_READ_MMIO, in_buf, out_size)
-        if size == 8:
-            value = struct.unpack('=Q', out_buf)[0]
-        elif size == 4:
-            value = struct.unpack('=I', out_buf)[0]
-        elif size == 2:
-            value = struct.unpack('=H', out_buf)[0]
-        elif size == 1:
-            value = struct.unpack('=B', out_buf)[0]
+        if out_size == 1:
+            return struct.unpack('=B', out_buf)[0]
+        elif out_size == 2:
+            return struct.unpack('=H', out_buf)[0]
+        elif out_size == 4:
+            return struct.unpack('=I', out_buf)[0]
+        elif out_size == 8:
+            return struct.unpack('=Q', out_buf)[0]
         else:
-            value = 0
-        return value
+            return 0
 
     def write_mmio_reg(self, phys_address: int, size: int, value: int) -> int:
-        if size == 8:
-            buf = struct.pack('=Q', value)
-        elif size == 4:
-            buf = struct.pack('=I', value & 0xFFFFFFFF)
+        if size == 1:
+            buf = struct.pack('=B', value & 0xFF)
         elif size == 2:
             buf = struct.pack('=H', value & 0xFFFF)
-        elif size == 1:
-            buf = struct.pack('=B', value & 0xFF)
+        elif size == 4:
+            buf = struct.pack('=I', value & 0xFFFFFFFF)
+        elif size == 8:
+            buf = struct.pack('=Q', value)
         else:
             return False
         in_buf = struct.pack('3I', ((phys_address >> 32) & 0xFFFFFFFF), (phys_address & 0xFFFFFFFF), size) + buf
-        out_buf = self._ioctl(IOCTL_WRITE_MMIO, in_buf, 4)
-        return out_buf
+        return self._ioctl(IOCTL_WRITE_MMIO, in_buf, 4)
 
     def alloc_phys_mem(self, length: int, max_pa: int) -> Tuple[int, int]:
         in_length = 12
@@ -596,8 +593,7 @@ class WindowsHelper(Helper):
         out_length = 8
         in_buf = struct.pack('<3Q', physical_address, length, cache_type)
         out_buf = self._ioctl(IOCTL_MAP_IO_SPACE, in_buf, out_length)
-        virtual_address = struct.unpack('<Q', out_buf)[0]
-        return virtual_address
+        return struct.unpack('<Q', out_buf)[0]
 
     #
     # FREE_PHYS_MEM
@@ -624,16 +620,15 @@ class WindowsHelper(Helper):
 
     def read_pci_reg(self, bus: int, device: int, function: int, address: int, size: int) -> int:
         bdf = PCI_BDF(bus & 0xFFFF, device & 0xFFFF, function & 0xFFFF, address & 0xFFFF)
-        out_length = size
         in_buf = struct.pack('4HB', bdf.BUS, bdf.DEV, bdf.FUNC, bdf.OFF, size)
+        out_length = size
         out_buf = self._ioctl(READ_PCI_CFG_REGISTER, in_buf, out_length)
-        if 1 == size:
-            value = struct.unpack('B', out_buf)[0]
-        elif 2 == size:
-            value = struct.unpack('H', out_buf)[0]
+        if out_length == 1:
+            return struct.unpack('B', out_buf)[0]
+        elif out_length == 2:
+            return struct.unpack('H', out_buf)[0]
         else:
-            value = struct.unpack('I', out_buf)[0]
-        return value
+            return struct.unpack('I', out_buf)[0]
 
     def write_pci_reg(self, bus: int, device: int, function: int, address: int, value: int, size: int) -> int:
         bdf = PCI_BDF(bus & 0xFFFF, device & 0xFFFF, function & 0xFFFF, address & 0xFFFF)
@@ -654,13 +649,12 @@ class WindowsHelper(Helper):
         value = 0
         in_buf = struct.pack('=HB', io_port, size)
         out_buf = self._ioctl(IOCTL_READ_IO_PORT, in_buf, size)
-        if 1 == size:
-            value = struct.unpack('B', out_buf)[0]
-        elif 2 == size:
-            value = struct.unpack('H', out_buf)[0]
+        if size == 1:
+            return struct.unpack('B', out_buf)[0]
+        elif size == 2:
+            return struct.unpack('H', out_buf)[0]
         else:
-            value = struct.unpack('I', out_buf)[0]
-        return value
+            return struct.unpack('I', out_buf)[0]
 
     def write_io_port(self, io_port: int, value: int, size: int) -> bool:
         in_buf = struct.pack('=HIB', io_port, value, size)
@@ -710,12 +704,11 @@ class WindowsHelper(Helper):
             if self.GetFirmwareEnvironmentVariable is not None:
                 logger().log_debug(f"[helper] -> GetFirmwareEnvironmentVariable( name='{name}', GUID='{{{guid}}}' )...")
                 length = self.GetFirmwareEnvironmentVariable(name, f'{{{guid}}}', efi_var, EFI_VAR_MAX_BUFFER_SIZE)
-        else:
-            if self.GetFirmwareEnvironmentVariableEx is not None:
-                pattrs = c_int(attrs)
-                logger().log_debug(f"[helper] -> GetFirmwareEnvironmentVariableEx( name='{name}', GUID='{{{guid}}}', attrs = 0x{attrs:X} )...")
-                length = self.GetFirmwareEnvironmentVariableEx(name, f'{{{guid}}}', efi_var, EFI_VAR_MAX_BUFFER_SIZE, pattrs)
-        if (0 == length) or (efi_var is None):
+        elif self.GetFirmwareEnvironmentVariableEx is not None:
+            pattrs = c_int(attrs)
+            logger().log_debug(f"[helper] -> GetFirmwareEnvironmentVariableEx( name='{name}', GUID='{{{guid}}}', attrs = 0x{attrs:X} )...")
+            length = self.GetFirmwareEnvironmentVariableEx(name, f'{{{guid}}}', efi_var, EFI_VAR_MAX_BUFFER_SIZE, pattrs)
+        if length == 0 or efi_var is None:
             status = kernel32.GetLastError()
             if logger().DEBUG:
                 logger().log_error(f'GetFirmwareEnvironmentVariable[Ex] returned error: {WinError()}')
@@ -741,11 +734,10 @@ class WindowsHelper(Helper):
             if self.SetFirmwareEnvironmentVariable is not None:
                 logger().log_debug(f"[helper] -> SetFirmwareEnvironmentVariable( name='{name}', GUID='{{{guid}}}', length=0x{var_len:X} )...")
                 ntsts = self.SetFirmwareEnvironmentVariable(name, f'{{{guid}}}', var, var_len)
-        else:
-            if self.SetFirmwareEnvironmentVariableEx is not None:
-                logger().log_debug(f"[helper] -> SetFirmwareEnvironmentVariableEx( name='{name}', GUID='{{{guid}}}', length=0x{var_len:X}, attrs=0x{attrs:X} )...")
-                ntsts = self.SetFirmwareEnvironmentVariableEx(name, f'{{{guid}}}', var, var_len, attrs)
-        if 0 != ntsts:
+        elif self.SetFirmwareEnvironmentVariableEx is not None:
+            logger().log_debug(f"[helper] -> SetFirmwareEnvironmentVariableEx( name='{name}', GUID='{{{guid}}}', length=0x{var_len:X}, attrs=0x{attrs:X} )...")
+            ntsts = self.SetFirmwareEnvironmentVariableEx(name, f'{{{guid}}}', var, var_len, attrs)
+        if ntsts != 0:
             status = 0  # EFI_SUCCESS
         else:
             status = kernel32.GetLastError()
@@ -762,18 +754,18 @@ class WindowsHelper(Helper):
         length = packl_ctypes(EFI_VAR_MAX_BUFFER_SIZE, 32)
         status = self.NtEnumerateSystemEnvironmentValuesEx(infcls, efi_vars, length)
         status = (((1 << 32) - 1) & status)
-        if (0xC0000023 == status):
+        if status == 0xC0000023:
             retlength, = struct.unpack("<I", length)
             efi_vars = create_string_buffer(retlength)
             status = self.NtEnumerateSystemEnvironmentValuesEx(infcls, efi_vars, length)
-        elif (0xC0000002 == status):
+        elif status == 0xC0000002:
             if logger().DEBUG:
                 logger().log_warning('NtEnumerateSystemEnvironmentValuesEx was not found (NTSTATUS = 0xC0000002)')
             logger().log_debug('[*] Your Windows does not expose UEFI Runtime Variable API. It was likely installed as legacy boot.\nTo use UEFI variable functions, chipsec needs to run in OS installed with UEFI boot (enable UEFI Boot in BIOS before installing OS)')
             return None
-        if 0 != status:
+        if status != 0:
             lasterror = kernel32.GetLastError()
-            if (0xC0000001 == status and lasterror == 0x000003E6):  # ERROR_NOACCESS: Invalid access to memory location.  https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/18d8fbe8-a967-4f1c-ae50-99ca8e491d2d
+            if status == 0xC0000001 and lasterror == 0x000003E6:  # ERROR_NOACCESS: Invalid access to memory location.  https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/18d8fbe8-a967-4f1c-ae50-99ca8e491d2d
                 if logger().DEBUG:
                     logger().log_warning('NtEnumerateSystemEnvironmentValuesEx was not successful (NTSTATUS = 0xC0000001)')
                 logger().log_debug('[*] Your Windows has restricted access to UEFI variables.\nTo use UEFI variable functions, chipsec needs to run in an older version of windows or in a different environment')
@@ -795,12 +787,11 @@ class WindowsHelper(Helper):
         out_length = struct.calcsize(_smi_msg_t_fmt)
         out_size = c_ulong(out_length)
         in_buf = struct.pack(_smi_msg_t_fmt, SMI_code_data, _rax, _rbx, _rcx, _rdx, _rsi, _rdi)
-        out_buf = self._ioctl(IOCTL_SWSMI, in_buf, out_length)
-        if out_buf:
-            ret = struct.unpack(_smi_msg_t_fmt, out_buf)
-        else:
-            ret = None
-        return ret
+        return (
+            struct.unpack(_smi_msg_t_fmt, out_buf)
+            if (out_buf := self._ioctl(IOCTL_SWSMI, in_buf, out_length))
+            else None
+        )
 
     def _get_handle_for_pid(self, pid: int = 0, ro: bool = True) -> int:
         if pid == 0:

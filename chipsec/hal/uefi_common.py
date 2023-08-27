@@ -84,12 +84,12 @@ def get_nvar_name(nvram: bytes, name_offset: int, isAscii: bool):
         nend = nvram.find(b'\x00', name_offset)
         name = nvram[name_offset:nend].decode('latin1')
         name_size = len(name) + 1
-        return (name, name_size)
     else:
         nend = nvram.find(b'\x00\x00', name_offset)
         name = nvram[name_offset:nend].decode('utf-16le')
         name_size = len(name) + 2
-        return (name, name_size)
+
+    return (name, name_size)
 
 
 VARIABLE_SIGNATURE_VSS = VARIABLE_DATA_SIGNATURE
@@ -217,8 +217,7 @@ def EFI_GUID_STR(guid: bytes) -> str:
 
 
 def align(of:int, size: int) -> int:
-    of = (((of + size - 1) // size) * size)
-    return of
+    return (((of + size - 1) // size) * size)
 
 
 def bit_set(value: int, mask: int, polarity: bool = False) -> bool:
@@ -321,7 +320,7 @@ def parse_sb_db(db: bytes, decode_dir: str) -> List[bytes]:
     dof = 0
     nsig = 0
     db_size = len(db)
-    if 0 == db_size:
+    if db_size == 0:
         return entries
 
     # some platforms have 0's in the beginnig, skip all 0 (no known SignatureType starts with 0x00):
@@ -361,14 +360,14 @@ def parse_sb_db(db: bytes, decode_dir: str) -> List[bytes]:
                 write_file(sig_file_name, data)
                 if (sig_parse_f is not None):
                     sig_parse_f(data)
-                sof = sof + SignatureSize
+                sof += SignatureSize
                 nsig = nsig + 1
         else:
             err_str = f'Wrong SignatureSize for {SignatureType} type: 0x{SignatureSize:X}.'
             if (sig_size > 0):
-                err_str = err_str + f' Must be 0x{sig_size:X}.'
+                err_str = f'{err_str} Must be 0x{sig_size:X}.'
             else:
-                err_str = err_str + " Must be >= 0x10."
+                err_str = f"{err_str} Must be >= 0x10."
             logger().log_error(err_str)
             logger().log_error('Skipping signature decode for this list.')
         dof = dof + SignatureListSize
@@ -486,7 +485,7 @@ def parse_efivar_file(fname: str, var: Optional[bytes] = None, var_type: int = S
     logger().log(f'Processing certs in file: {fname}')
     if not var:
         var = read_file(fname)
-    var_path = fname + '.dir'
+    var_path = f'{fname}.dir'
     if not os.path.exists(var_path):
         os.makedirs(var_path)
     if var_type == SECURE_BOOT_SIG_VAR:
@@ -837,9 +836,9 @@ class S3BOOTSCRIPT_ENTRY:
         entry_str = '' if self.index is None else (f'[{self.index:03d}] ')
         entry_str += f'Entry at offset 0x{self.offset_in_script:04X} (len = 0x{self.length:X}, header len = 0x{self.header_length:X}):'
         if self.data:
-            entry_str = entry_str + f'\nData:\n{dump_buffer_bytes(self.data, 16)}'
+            entry_str = f'{entry_str}\nData:\n{dump_buffer_bytes(self.data, 16)}'
         if self.decoded_opcode:
-            entry_str = entry_str + f'Decoded:\n{str(self.decoded_opcode)}'
+            entry_str = f'{entry_str}Decoded:\n{str(self.decoded_opcode)}'
         return entry_str
 
 
@@ -1042,7 +1041,7 @@ class EFI_BOOT_SERVICES_TABLE(namedtuple('EFI_BOOT_SERVICES_TABLE', 'RaiseTPL Re
 # \MdePkg\Include\Uefi\UefiSpec.h
 # -------------------------------
 
-EFI_VENDOR_TABLE_FORMAT = '<' + EFI_GUID_FMT + 'Q'
+EFI_VENDOR_TABLE_FORMAT = f'<{EFI_GUID_FMT}Q'
 EFI_VENDOR_TABLE_SIZE = struct.calcsize(EFI_VENDOR_TABLE_FORMAT)
 
 

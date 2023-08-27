@@ -99,12 +99,12 @@ class smrr(BaseModule):
         self.logger.log("[*] SMRR range base: 0x{:016X}".format(smrrbase))
 
         if smrrtype in MemType:
-            self.logger.log("[*] SMRR range memory type is {}".format(MemType[smrrtype]))
+            self.logger.log(f"[*] SMRR range memory type is {MemType[smrrtype]}")
         else:
             smrr_ok = False
             self.logger.log_bad("SMRR range memory type 0x{:X} is invalid".format(smrrtype))
 
-        if 0 == smrrbase:
+        if smrrbase == 0:
             smrr_ok = False
             self.logger.log_bad("SMRR range base is not programmed")
 
@@ -122,7 +122,7 @@ class smrr(BaseModule):
         smrrvalid = self.cs.get_register_field('IA32_SMRR_PHYSMASK', msr_smrrmask, 'Valid')
         self.logger.log("[*] SMRR range mask: 0x{:016X}".format(smrrmask))
 
-        if not (smrrvalid and (0 != smrrmask)):
+        if not (smrrvalid and smrrmask != 0):
             smrr_ok = False
             self.logger.log_bad("SMRR range is not enabled")
 
@@ -153,17 +153,17 @@ class smrr(BaseModule):
 
         self.logger.log("[*] Trying to read memory at SMRR base 0x{:08X}..".format(smrrbase))
 
-        ok = 0xFFFFFFFF == self.cs.mem.read_physical_mem_dword(smrrbase)
+        ok = self.cs.mem.read_physical_mem_dword(smrrbase) == 0xFFFFFFFF
         smrr_ok = smrr_ok and ok
         if ok:
             self.logger.log_passed("SMRR reads are blocked in non-SMM mode")  # return all F's
         else:
             self.logger.log_failed("SMRR reads are not blocked in non-SMM mode")  # all F's are not returned
 
-        if (do_modify):
+        if do_modify:
             self.logger.log("[*] Trying to modify memory at SMRR base 0x{:08X}..".format(smrrbase))
             self.cs.mem.write_physical_mem_dword(smrrbase, 0x90909090)
-            ok = 0x90909090 != self.cs.mem.read_physical_mem_dword(smrrbase)
+            ok = self.cs.mem.read_physical_mem_dword(smrrbase) != 0x90909090
             smrr_ok = smrr_ok and ok
             if ok:
                 self.logger.log_good("SMRR writes are blocked in non-SMM mode")

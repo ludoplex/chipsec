@@ -88,7 +88,7 @@ class IOBAR(hal_base.HALBase):
             base = self.cs.pci.read_word(bar['bus'], bar['dev'], bar['fun'], bar['reg'])
             empty_base = 0xFFFF
 
-        if 'fixed_address' in bar and (base == empty_base or base == 0):
+        if 'fixed_address' in bar and base in [empty_base, 0]:
             base = bar['fixed_address']
             if logger().HAL:
                 logger().log(f'[iobar] Using fixed address for {bar_name}: 0x{base:016X}')
@@ -115,8 +115,7 @@ class IOBAR(hal_base.HALBase):
         io_port = bar_base + offset
         if offset > bar_size and logger().HAL:
             logger().log_warning(f'offset 0x{offset:X} is outside {bar_name} size (0x{size:X})')
-        value = self.cs.io._read_port(io_port, size)
-        return value
+        return self.cs.io._read_port(io_port, size)
 
     #
     # Write I/O register from I/O range defined by I/O BAR name
@@ -137,10 +136,10 @@ class IOBAR(hal_base.HALBase):
         bar = self.cs.Cfg.IO_BARS[bar_name]
         is_enabled = True
         if 'register' in bar:
-            bar_reg = bar['register']
             if 'enable_field' in bar:
                 bar_en_field = bar['enable_field']
-                is_enabled = (1 == self.cs.read_register_field(bar_reg, bar_en_field))
+                bar_reg = bar['register']
+                is_enabled = self.cs.read_register_field(bar_reg, bar_en_field) == 1
         return is_enabled
 
     def list_IO_BARs(self) -> None:
@@ -175,10 +174,7 @@ class IOBAR(hal_base.HALBase):
     def read_IO_BAR(self, bar_name: str, size: int = 1) -> List[int]:
         (range_base, range_size) = self.get_IO_BAR_base_address(bar_name)
         n = range_size // size
-        io_ports = []
-        for i in range(n):
-            io_ports.append(self.cs.io._read_port(range_base + i * size, size))
-        return io_ports
+        return [self.cs.io._read_port(range_base + i * size, size) for i in range(n)]
 
     #
     # Dump I/O range by I/O BAR name

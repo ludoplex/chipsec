@@ -197,39 +197,30 @@ class ChipsecResults:
 
     def get_return_codeRC(self):
         summary = self.order_summaryRC()
-        if len(summary['failed']) != 0:
-            return ExitCode.FAIL
-        else:
-            return ExitCode.OK
+        return ExitCode.FAIL if len(summary['failed']) != 0 else ExitCode.OK
 
 
     def set_time(self, pTime: Optional[float] = None) -> None:
         """Sets the time"""
         if pTime is not None:
             self.time = pTime
+        elif len(self.test_cases) > 1:
+            self.time = self.get_current().endTime - self.test_cases[0].startTime
         else:
-            if len(self.test_cases) > 1:
-                self.time = self.get_current().endTime - self.test_cases[0].startTime
-            else:
-                self.time = self.test_cases[0].time
+            self.time = self.test_cases[0].time
 
     def get_results(self) -> Dict[str, int]:
-        results = {}
-        for test in self.test_cases:
-            results[test.name] = {'result': test.result}
-        return results
+        return {test.name: {'result': test.result} for test in self.test_cases}
 
     def xml_summary(self) -> str:
         summary = self.order_summary()
         xml_element = ET.Element("Summary")
         for value in summary.keys():
-            temp = {}
+            temp = {'name': value}
             if value == 'total':
-                temp['name'] = value
                 temp['total'] = f'{summary[value]:d}'
                 m_element = ET.SubElement(xml_element, 'result', temp)
             else:
-                temp['name'] = value
                 temp['total'] = f'{len(summary[value]):d}'
                 m_element = ET.SubElement(xml_element, 'result', temp)
                 for mod in summary[value]:
@@ -239,13 +230,11 @@ class ChipsecResults:
 
     def json_summary(self) -> str:
         summary = self.order_summary()
-        js = json.dumps(summary, sort_keys=False, indent=2, separators=(',', ': '))
-        return js
+        return json.dumps(summary, sort_keys=False, indent=2, separators=(',', ': '))
 
     def json_full(self) -> str:
         summary = self.get_results()
-        js = json.dumps(summary, sort_keys=False, indent=2, separators=(',', ': '))
-        return js
+        return json.dumps(summary, sort_keys=False, indent=2, separators=(',', ': '))
 
     def xml_full(self, name: str, runtime: Optional[float] = None) -> str:
         xml_element = ET.Element('testsuites')

@@ -63,7 +63,7 @@ class IOMMU(hal_base.HALBase):
 
     def is_IOMMU_Translation_Enabled(self, iommu_engine: str) -> bool:
         tes = self.cs.read_register_field(f'{IOMMU_ENGINES[iommu_engine]}_GSTS', 'TES')
-        return (1 == tes)
+        return tes == 1
 
     def set_IOMMU_Translation(self, iommu_engine: str, te: int) -> bool:
         return self.cs.write_register_field(f'{IOMMU_ENGINES[iommu_engine]}_GCMD', 'TE', te)
@@ -131,18 +131,18 @@ class IOMMU(hal_base.HALBase):
         pasid = self.cs.get_register_field(f'{vtd}_ECAP', ecap_reg, 'PASID')
         self.logger.log(f'[iommu] PASID / ECS            : {pasid:X} / {ecs:X}')
 
-        if 0xFFFFFFFFFFFFFFFF != rtaddr_reg:
-            if te:
-                self.logger.log(f'[iommu] Dumping VT-d page table hierarchy at 0x{rtaddr_rta:016X} (vtd_context_{rtaddr_rta:08X})')
-                paging_vtd = paging.c_vtd_page_tables(self.cs)
-                paging_vtd.read_vtd_context(f'vtd_context_{rtaddr_rta:08X}', rtaddr_rta)
-                self.logger.log(f'[iommu] Total VTd domains: {len(paging_vtd.domains):d}')
-                for domain in paging_vtd.domains:
-                    paging_vtd.read_pt_and_show_status(f'vtd_{domain:08X}', 'VTd', domain)
-            else:
-                self.logger.log(f"[iommu] translation via VT-d engine '{iommu_engine}' is not enabled")
-        else:
+        if rtaddr_reg == 0xFFFFFFFFFFFFFFFF:
             self.logger.log_error("Cannot access VT-d registers")
+
+        elif te:
+            self.logger.log(f'[iommu] Dumping VT-d page table hierarchy at 0x{rtaddr_rta:016X} (vtd_context_{rtaddr_rta:08X})')
+            paging_vtd = paging.c_vtd_page_tables(self.cs)
+            paging_vtd.read_vtd_context(f'vtd_context_{rtaddr_rta:08X}', rtaddr_rta)
+            self.logger.log(f'[iommu] Total VTd domains: {len(paging_vtd.domains):d}')
+            for domain in paging_vtd.domains:
+                paging_vtd.read_pt_and_show_status(f'vtd_{domain:08X}', 'VTd', domain)
+        else:
+            self.logger.log(f"[iommu] translation via VT-d engine '{iommu_engine}' is not enabled")
 
     def dump_IOMMU_status(self, iommu_engine: str) -> None:
         vtd = IOMMU_ENGINES[iommu_engine]

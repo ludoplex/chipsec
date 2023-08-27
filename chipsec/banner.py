@@ -34,7 +34,7 @@ def chipsec_banner(arguments: Sequence[str], version: str, message: str, custom_
     args = ' '.join(arguments)
     if custom_str:
         message += f'\n{custom_str}'
-    banner = f'''
+    return f'''
 ################################################################
 ##                                                            ##
 ##  CHIPSEC: Platform Hardware Security Assessment Framework  ##
@@ -43,7 +43,6 @@ def chipsec_banner(arguments: Sequence[str], version: str, message: str, custom_
 [CHIPSEC] Version  : {version}
 [CHIPSEC] Arguments: {args}
 {message}'''
-    return banner
 
 
 def print_banner(arguments: Sequence[str], version: str, message: str, custom_str: str = '') -> None:
@@ -53,7 +52,7 @@ def print_banner(arguments: Sequence[str], version: str, message: str, custom_st
 def chipsec_banner_properties(cs: Chipset, os_version: Tuple[str, str, str, str]) -> str:
     """Creates the CHIPSEC properties banner string"""
     (system, release, version, machine) = os_version
-    is_python_64 = True if (sys.maxsize > 2**32) else False
+    is_python_64 = sys.maxsize > 2**32
     python_version = platform.python_version()
     python_arch = '64-bit' if is_python_64 else '32-bit'
     (helper_name, driver_path) = cs.helper.get_info()

@@ -93,27 +93,25 @@ class Interrupts(hal_base.HALBase):
         # } EFI_SMM_COMMUNICATE_HEADER;
         _guid = uuid.UUID(guid).bytes_le
         data_hdr = _guid + struct.pack("Q", len(data)) + data
-        if not invoc_reg is None:
+        if invoc_reg is not None:
             # need to write data_hdr to comm buffer
             self.cs.helper.write_phys_mem(buf_addr, len(data_hdr), data_hdr)
             # USING GAS need to write buf_addr into invoc_reg
             if invoc_reg.addrSpaceID == 0:
                 self.cs.helper.write_phys_mem(invoc_reg.addr, invoc_reg.accessSize, buf_addr)
                 # check for return status
-                ret_buf = self.cs.helper.read_phys_mem(buf_addr, 8)
+                return self.cs.helper.read_phys_mem(buf_addr, 8)
             elif invoc_reg.addrSpaceID == 1:
                 self.cs.helper.write_io_port(invoc_reg.addr, invoc_reg.accessSize, buf_addr)
                 # check for return status
-                ret_buf = self.cs.helper.read_io_port(buf_addr, 8)
+                return self.cs.helper.read_io_port(buf_addr, 8)
             else:
                 logger().log_error("Functionality is currently not implemented")
-                ret_buf = None
-            return ret_buf
-
+                return None
         else:
             # Wait for Communication buffer to be empty
             buf = 1
-            while not buf == b"\x00\x00":
+            while buf != b"\x00\x00":
                 buf = self.cs.helper.read_phys_mem(buf_addr, 2)
             # write data to commbuffer
             self.cs.helper.write_phys_mem(buf_addr, len(data_hdr), data_hdr)
@@ -184,5 +182,6 @@ MdeModulePkg/Core/PiSmmCore/PiSmmCorePrivateData.h
             print_buffer_bytes(self.cs.mem.read_physical_mem(payload_loc, len(data_hdr)))
             self.logger.log("")
 
-        ReturnStatus = struct.unpack("Q", self.cs.mem.read_physical_mem(smmc + ReturnStatus_offset, 8))[0]
-        return ReturnStatus
+        return struct.unpack(
+            "Q", self.cs.mem.read_physical_mem(smmc + ReturnStatus_offset, 8)
+        )[0]

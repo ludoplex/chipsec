@@ -33,6 +33,7 @@ https://www.simmtester.com/News/PublicationArticle/101
 http://en.wikipedia.org/wiki/Serial_presence_detect
 """
 
+
 import struct
 from typing import Any, List
 from collections import namedtuple
@@ -50,14 +51,12 @@ SPD_SMBUS_ADDRESS_DIMM6 = SPD_SMBUS_ADDRESS + 0xC
 SPD_SMBUS_ADDRESS_DIMM7 = SPD_SMBUS_ADDRESS + 0xE
 MAX_DIMM_SPD_COUNT = 8
 
-SPD_DIMMS = {}
-for i in range(MAX_DIMM_SPD_COUNT):
-    SPD_DIMMS[SPD_SMBUS_ADDRESS + i * 2] = f'DIMM{i:d}'
-
-SPD_DIMM_ADDRESSES = {}
-for i in range(MAX_DIMM_SPD_COUNT):
-    SPD_DIMM_ADDRESSES[f'DIMM{i:d}'] = SPD_SMBUS_ADDRESS + i * 2
-
+SPD_DIMMS = {
+    SPD_SMBUS_ADDRESS + i * 2: f'DIMM{i:d}' for i in range(MAX_DIMM_SPD_COUNT)
+}
+SPD_DIMM_ADDRESSES = {
+    f'DIMM{i:d}': SPD_SMBUS_ADDRESS + i * 2 for i in range(MAX_DIMM_SPD_COUNT)
+}
 ###############################################################################
 #
 # SPD Decode
@@ -193,13 +192,15 @@ def SPD_REVISION(revision: int) -> str:
 
 
 def dram_device_type_name(dram_type: int) -> str:
-    dt_name = DRAM_DEVICE_TYPE[dram_type] if dram_type in DRAM_DEVICE_TYPE else 'unknown'
-    return dt_name
+    return (
+        DRAM_DEVICE_TYPE[dram_type]
+        if dram_type in DRAM_DEVICE_TYPE
+        else 'unknown'
+    )
 
 
 def module_type_name(module_type: int) -> str:
-    mt_name = MODULE_TYPE[module_type] if module_type in MODULE_TYPE else 'unknown'
-    return mt_name
+    return MODULE_TYPE[module_type] if module_type in MODULE_TYPE else 'unknown'
 
 
 SPD_DDR_FORMAT = '=4B'
@@ -347,15 +348,15 @@ class SPD:
         if DRAM_DEVICE_TYPE_DDR3 == device_type:
             ecc_off = SPD_OFFSET_DDR3_MEMORY_BUS_WIDTH_ECC
             ecc = self.read_byte(ecc_off, device)
-            ecc_supported = (0xB == ecc)
+            ecc_supported = ecc == 0xB
         elif DRAM_DEVICE_TYPE_DDR4 == device_type:
             ecc_off = SPD_OFFSET_DDR4_MEMORY_BUS_WIDTH_ECC
             ecc = self.read_byte(ecc_off, device)
-            ecc_supported = (0xB == ecc)
+            ecc_supported = ecc == 0xB
         elif DRAM_DEVICE_TYPE_DDR == device_type or DRAM_DEVICE_TYPE_DDR2 == device_type:
             ecc_off = SPD_OFFSET_DDR_DIMM_CONFIGURATION_TYPE
             ecc = self.read_byte(ecc_off, device)
-            ecc_supported = (0x2 == ecc)
+            ecc_supported = ecc == 0x2
             ecc_width = self.read_byte(SPD_OFFSET_DDR_ECC_SDRAM_WIDTH, device)
             logger().log_hal(f'[spd][0x{device:02X}] DDR/DDR2 ECC width (byte {SPD_OFFSET_DDR_ECC_SDRAM_WIDTH:d}): 0x{ecc_width:02X}')
 
@@ -368,10 +369,7 @@ class SPD:
         return ecc_supported
 
     def detect(self) -> List[int]:
-        _dimms = []
-        for d in SPD_DIMMS:
-            if self.isSPDPresent(d):
-                _dimms.append(d)
+        _dimms = [d for d in SPD_DIMMS if self.isSPDPresent(d)]
         if logger().HAL:
             logger().log('Detected the following SPD devices:')
             for _dimm in _dimms:

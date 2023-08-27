@@ -151,10 +151,12 @@ class remap(BaseModule):
             else:
                 self.logger.log_bad("  Remap window configuration is not correct")
 
-        ok = (0 == tolud & ALIGNED_1MB) and \
-             (0 == touud & ALIGNED_1MB) and \
-             (0 == remapbase & ALIGNED_1MB) and \
-             (0 == remaplimit & ALIGNED_1MB)
+        ok = (
+            tolud & ALIGNED_1MB == 0
+            and touud & ALIGNED_1MB == 0
+            and remapbase & ALIGNED_1MB == 0
+            and remaplimit & ALIGNED_1MB == 0
+        )
         remap_ok = remap_ok and ok
         if ok:
             self.logger.log_good("  All addresses are 1MB aligned")
@@ -162,21 +164,21 @@ class remap(BaseModule):
             self.logger.log_bad("  Not all addresses are 1MB aligned")
 
         self.logger.log("[*] Checking if memory remap configuration is locked..")
-        ok = (0 != touud_lock) or (0 != ia_untrusted)
+        ok = touud_lock != 0 or ia_untrusted != 0
         remap_ok = remap_ok and ok
         if ok:
             self.logger.log_good("  TOUUD is locked")
         else:
             self.logger.log_bad("  TOUUD is not locked")
 
-        ok = (0 != tolud_lock) or (0 != ia_untrusted)
+        ok = tolud_lock != 0 or ia_untrusted != 0
         remap_ok = remap_ok and ok
         if ok:
             self.logger.log_good("  TOLUD is locked")
         else:
             self.logger.log_bad("  TOLUD is not locked")
 
-        ok = ((0 != remapbase_lock) and (0 != remaplimit_lock)) or (0 != ia_untrusted)
+        ok = remapbase_lock != 0 != remaplimit_lock or ia_untrusted != 0
         remap_ok = remap_ok and ok
         if ok:
             self.logger.log_good("  REMAPBASE and REMAPLIMIT are locked")
@@ -199,10 +201,7 @@ class remap(BaseModule):
             self.rc_res.setStatusBit(self.rc_res.status.LOCKS)
             self.logger.log_failed("Memory Remap is not properly configured/locked. Remaping attack may be possible")
 
-        if self.cs.using_return_codes:
-            return self.rc_res.buildRC()
-        else:
-            return res
+        return self.rc_res.buildRC() if self.cs.using_return_codes else res
 
     # --------------------------------------------------------------------------
     # run( module_argv )

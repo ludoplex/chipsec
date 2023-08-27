@@ -76,15 +76,13 @@ def decompress_section_data(section_dir_path: str, sec_fs_name: str, compressed_
     uefi_uc = UEFICompression()
     uncompressed_name = os.path.join(section_dir_path, sec_fs_name)
     logger().log_hal(f'[uefi] Decompressing EFI binary (type = 0x{compression_type:X})\n       {uncompressed_name} ->\n')
-    uncompressed_image = uefi_uc.decompress_EFI_binary(compressed_data, compression_type)
-    return uncompressed_image
+    return uefi_uc.decompress_EFI_binary(compressed_data, compression_type)
 
 
 def compress_image(image: bytes, compression_type: int) -> bytes:
     uefi_uc = UEFICompression()
     logger().log_hal(f'[uefi] Compressing EFI binary (type = 0x{compression_type:X})\n')
-    compressed_image = uefi_uc.compress_EFI_binary(image, compression_type)
-    return compressed_image
+    return uefi_uc.compress_EFI_binary(image, compression_type)
 
 
 def modify_uefi_region(data: bytes, command: int, guid: UUID, uefi_file: bytes = b'') -> bytes:
@@ -93,7 +91,10 @@ def modify_uefi_region(data: bytes, command: int, guid: UUID, uefi_file: bytes =
     while fv is not None:
         FvLengthChange = 0
         polarity = bit_set(fv.Attributes, EFI_FVB2_ERASE_POLARITY)
-        if ((fv.Guid == EFI_FIRMWARE_FILE_SYSTEM2_GUID) or (fv.Guid == EFI_FIRMWARE_FILE_SYSTEM_GUID)):
+        if fv.Guid in [
+            EFI_FIRMWARE_FILE_SYSTEM2_GUID,
+            EFI_FIRMWARE_FILE_SYSTEM_GUID,
+        ]:
             fwbin = NextFwFile(fv.Image, fv.Size, fv.HeaderSize, polarity)
             while fwbin is not None:
                 next_offset = fwbin.Size + fwbin.Offset
@@ -124,7 +125,7 @@ def modify_uefi_region(data: bytes, command: int, guid: UUID, uefi_file: bytes =
 
                 fwbin = NextFwFile(fv.Image, fv.Size, next_offset, polarity)
             if FvEndOffset == 0:
-                logger().log_hal(f'Using FvEndOffset = 0')
+                logger().log_hal('Using FvEndOffset = 0')
             if FvLengthChange >= 0:
                 data = data[:FvEndOffset] + data[FvEndOffset + FvLengthChange:]
             else:
@@ -132,13 +133,13 @@ def modify_uefi_region(data: bytes, command: int, guid: UUID, uefi_file: bytes =
 
             FvLengthChange = 0
 
-            # if FvLengthChange != 0:
-            #    logger().log( "Rebuilding Firmware Volume with GUID={} at offset={:08X}".format(FsGuid, FvOffset) )
-            #    FvHeader = data[FvOffset: FvOffset + FvHeaderLength]
-            #    FvHeader = FvHeader[:0x20] + struct.pack('<Q', FvLength) + FvHeader[0x28:]
-            #    NewChecksum = FvChecksum16(FvHeader[:0x32] + '\x00\x00' + FvHeader[0x34:])
-            #    FvHeader = FvHeader[:0x32] + struct.pack('<H', NewChecksum) + FvHeader[0x34:]
-            #    data = data[:FvOffset] + FvHeader + data[FvOffset + FvHeaderLength:]
+                    # if FvLengthChange != 0:
+                    #    logger().log( "Rebuilding Firmware Volume with GUID={} at offset={:08X}".format(FsGuid, FvOffset) )
+                    #    FvHeader = data[FvOffset: FvOffset + FvHeaderLength]
+                    #    FvHeader = FvHeader[:0x20] + struct.pack('<Q', FvLength) + FvHeader[0x28:]
+                    #    NewChecksum = FvChecksum16(FvHeader[:0x32] + '\x00\x00' + FvHeader[0x34:])
+                    #    FvHeader = FvHeader[:0x32] + struct.pack('<H', NewChecksum) + FvHeader[0x34:]
+                    #    data = data[:FvOffset] + FvHeader + data[FvOffset + FvHeaderLength:]
 
         fv = NextFwVolume(data, fv.Offset, fv.Size)
     return data
@@ -183,7 +184,11 @@ def build_efi_modules_tree(fwtype: str, data: bytes, Size: int, offset: int, pol
 
             if sec.Guid == EFI_CRC32_GUIDED_SECTION_EXTRACTION_PROTOCOL_GUID:
                 sec.children = build_efi_modules_tree(fwtype, sec.Image[sec.DataOffset:], Size - sec.DataOffset, 0, polarity)
-            elif sec.Guid == LZMA_CUSTOM_DECOMPRESS_GUID or sec.Guid == TIANO_DECOMPRESSED_GUID or sec.Guid == LZMAF86_DECOMPRESS_GUID:
+            elif sec.Guid in [
+                LZMA_CUSTOM_DECOMPRESS_GUID,
+                TIANO_DECOMPRESSED_GUID,
+                LZMAF86_DECOMPRESS_GUID,
+            ]:
                 if sec.Guid == LZMA_CUSTOM_DECOMPRESS_GUID:
                     d = decompress_section_data("", sec_fs_name, sec.Image[sec.DataOffset:], COMPRESSION_TYPE_LZMA)
                 elif sec.Guid == LZMAF86_DECOMPRESS_GUID:
@@ -221,8 +226,12 @@ def build_efi_modules_tree(fwtype: str, data: bytes, Size: int, offset: int, pol
 
         elif sec.Type == EFI_SECTION_COMPRESSION:
             for mct in COMPRESSION_TYPES_ALGORITHMS:
-                d = decompress_section_data("", sec_fs_name, sec.Image[sec.HeaderSize + EFI_COMPRESSION_SECTION_size:], mct)
-                if d:
+                if d := decompress_section_data(
+                    "",
+                    sec_fs_name,
+                    sec.Image[sec.HeaderSize + EFI_COMPRESSION_SECTION_size :],
+                    mct,
+                ):
                     sec.children = build_efi_modules_tree(fwtype, d, len(d), 0, polarity)
                 if sec.children:
                     break
@@ -265,11 +274,10 @@ def build_efi_file_tree(fv_img: bytes, fwtype: str) -> List[EFI_FILE]:
         elif fwbin.Type == EFI_FV_FILETYPE_RAW:
             if fwbin.Name != NVAR_NVRAM_FS_FILE:
                 fwbin.children = build_efi_tree(fwbin.Image[fwbin.HeaderSize:], fwtype)
-                fv.append(fwbin)
             else:
                 fwbin.isNVRAM = True
                 fwbin.NVRAMType = FWType.EFI_FW_TYPE_NVAR
-                fv.append(fwbin)
+            fv.append(fwbin)
         elif fwbin.State not in (EFI_FILE_HEADER_CONSTRUCTION, EFI_FILE_HEADER_INVALID, EFI_FILE_HEADER_VALID):
             fwbin.children = build_efi_modules_tree(fwtype, fwbin.Image, fwbin.Size, fwbin.HeaderSize, polarity)
             fv.append(fwbin)
@@ -355,10 +363,11 @@ def FILENAME(mod: Union[EFI_FILE, EFI_SECTION], parent: Optional['EFI_MODULE'], 
         fname = f'{modn:02d}_{mod.Name}'
         if mod.Type in EFI_SECTIONS_EXE:
             if (parent is not None) and parent.ui_string:
-                if (parent.ui_string.endswith(".efi")):
-                    fname = parent.ui_string
-                else:
-                    fname = f'{parent.ui_string}.efi'
+                fname = (
+                    parent.ui_string
+                    if (parent.ui_string.endswith(".efi"))
+                    else f'{parent.ui_string}.efi'
+                )
             else:
                 fname = f'{fname}.{type2ext[mod.Type]}'
     return fname
@@ -422,8 +431,7 @@ def save_efi_tree(modules: List['EFI_MODULE'],
                   ) -> List[Dict[str, Any]]:
     mod_dir_path = ''
     modules_arr = []
-    modn = 0
-    for m in modules:
+    for modn, m in enumerate(modules):
         md: Dict[str, Any] = {}
         m.indent = DEF_INDENT * lvl
         if save_log:
@@ -449,19 +457,18 @@ def save_efi_tree(modules: List['EFI_MODULE'],
                 mod_dir_path = f'{mod_path}.dir'
                 if not os.path.exists(mod_dir_path):
                     os.makedirs(mod_dir_path)
-                if m.isNVRAM:
-                    try:
-                        if m.NVRAMType and (parent is not None):
-                            # @TODO: technically, NVRAM image should be m.Image but
-                            # getNVstore_xxx functions expect FV than a FW file within FV
-                            # so for EFI_FILE type of module using parent's Image as NVRAM
-                            nvram = parent.Image if (type(m) == EFI_FILE and type(parent) == EFI_FV) else m.Image
-                            file_path = os.path.join(mod_dir_path, 'NVRAM')
-                            parse_EFI_variables(file_path, nvram, False, m.NVRAMType)
-                        else:
-                            raise Exception("NVRAM type cannot be None")
-                    except Exception:
-                        logger().log_warning(f"Couldn't extract NVRAM in {{{m.Guid}}} using type '{m.NVRAMType}'")
+            if m.isNVRAM:
+                try:
+                    if not m.NVRAMType or parent is None:
+                        raise Exception("NVRAM type cannot be None")
+                    # @TODO: technically, NVRAM image should be m.Image but
+                    # getNVstore_xxx functions expect FV than a FW file within FV
+                    # so for EFI_FILE type of module using parent's Image as NVRAM
+                    nvram = parent.Image if (type(m) == EFI_FILE and type(parent) == EFI_FV) else m.Image
+                    file_path = os.path.join(mod_dir_path, 'NVRAM')
+                    parse_EFI_variables(file_path, nvram, False, m.NVRAMType)
+                except Exception:
+                    logger().log_warning(f"Couldn't extract NVRAM in {{{m.Guid}}} using type '{m.NVRAMType}'")
 
         # save children modules
         if len(m.children) > 0:
@@ -470,8 +477,6 @@ def save_efi_tree(modules: List['EFI_MODULE'],
             del md["children"]
 
         modules_arr.append(md)
-        modn += 1
-
     return modules_arr
 
 
@@ -544,8 +549,7 @@ def save_efi_tree_filetype(modules: List['EFI_MODULE'],
                            ) -> List[Dict[str, Any]]:
     mod_dir_path = path
     modules_arr = []
-    modn = 0
-    for m in modules:
+    for modn, m in enumerate(modules):
         md: Dict[str, Any] = {}
         m.indent = DEF_INDENT * lvl
         if (isinstance(m, EFI_FILE) and m.Type in filetype) or save:
@@ -578,6 +582,4 @@ def save_efi_tree_filetype(modules: List['EFI_MODULE'],
             del md["children"]
 
         modules_arr.append(md)
-        modn += 1
-
     return modules_arr

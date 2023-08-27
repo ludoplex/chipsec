@@ -60,14 +60,14 @@ class RecordHelper(Helper):
             margs = str(args)
         if isinstance(ret, bytes):
             ret = bytestostring(ret)
-        if str(cmd) in self._data:
-            if margs in self._data[str(cmd)]:
+        if cmd in self._data:
+            if margs in self._data[cmd]:
                 # using insert opposed to append so that it creates last in first out when using pop command within getElement
-                self._data[str(cmd)][margs].insert(0, str(ret))
+                self._data[cmd][margs].insert(0, str(ret))
             else:
-                self._data[str(cmd)][margs] = [str(ret)]
+                self._data[cmd][margs] = [str(ret)]
         else:
-            self._data[str(cmd)] = {margs: [str(ret)]}
+            self._data[cmd] = {margs: [str(ret)]}
 
     def _save(self) -> None:
         js = dumps(self._data, sort_keys=False, indent=2, separators=(',', ': '))

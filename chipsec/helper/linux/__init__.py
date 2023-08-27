@@ -27,7 +27,4 @@
 
 import platform
 
-if "linux" == platform.system().lower():
-    __all__ = ["linuxhelper"]
-else:
-    __all__ = []
+__all__ = ["linuxhelper"] if platform.system().lower() == "linux" else []

@@ -133,15 +133,19 @@ class access_uefispec(BaseModule):
             baddata = 'A' * datalen  # in case we failed to restore previously
         status = self._uefi.set_EFI_variable(name, guid, baddata)
         if status != StatusCode.EFI_SUCCESS:
-            self.logger.log_good('Writing EFI variable {} did not succeed.'.format(name))
+            self.logger.log_good(f'Writing EFI variable {name} did not succeed.')
         newdata = self._uefi.get_EFI_variable(name, guid)
         if self.diff_var(newdata, origdata):
-            self.logger.log_bad('Corruption of EFI variable of concern {}. Trying to recover.'.format(name))
+            self.logger.log_bad(
+                f'Corruption of EFI variable of concern {name}. Trying to recover.'
+            )
             ret = True
             self._uefi.set_EFI_variable(name, guid, origdata)
             if self.diff_var(self._uefi.get_EFI_variable(name, guid), origdata):
-                nameguid = name + ' (' + guid + ')'
-                self.logger.log_bad('RECOVERY FAILED. Variable {} remains corrupted. Original data value: {}'.format(nameguid, origdata))
+                nameguid = f'{name} ({guid})'
+                self.logger.log_bad(
+                    f'RECOVERY FAILED. Variable {nameguid} remains corrupted. Original data value: {origdata}'
+                )
         return ret
 
     def check_vars(self, do_modify):
@@ -158,15 +162,12 @@ class access_uefispec(BaseModule):
 
         self.logger.log('[*] Testing UEFI variables ..')
         for name in vars.keys():
-            if name is None:
-                pass
-            if vars[name] is None:
-                pass
-
             if len(vars[name]) > 1:
-                self.logger.log_important('Found two instances of the variable {}.'.format(name))
+                self.logger.log_important(f'Found two instances of the variable {name}.')
             for (off, buf, hdr, data, guid, attrs) in vars[name]:
-                self.logger.log('[*] Variable {} ({}) Guid {} Size {} '.format(name, get_attr_string(attrs), guid, hex(len(data))))
+                self.logger.log(
+                    f'[*] Variable {name} ({get_attr_string(attrs)}) Guid {guid} Size {hex(len(data))} '
+                )
                 perms = self.uefispec_vars.get(name)
                 if perms is not None:
                     if perms != attrs:
@@ -175,43 +176,44 @@ class access_uefispec(BaseModule):
                         missing_attr = attr_diffs & ~extra_attr
                         uefispec_concern.append(name)
                         if extra_attr != 0:
-                            self.logger.log_important('  Extra attributes:' + get_attr_string(extra_attr))
+                            self.logger.log_important(f'  Extra attributes:{get_attr_string(extra_attr)}')
                             if (extra_attr & ~(EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS | EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS | EFI_VARIABLE_APPEND_WRITE) != 0):
                                 res = ModuleResult.FAILED
                         if missing_attr != 0:
-                            self.logger.log_important('  Missing attributes:' + get_attr_string(missing_attr))
+                            self.logger.log_important(
+                                f'  Missing attributes:{get_attr_string(missing_attr)}'
+                            )
                         if res != ModuleResult.FAILED:
                             res = ModuleResult.WARNING
 
                 if do_modify:
-                    self.logger.log("[*] Testing modification of {} ..".format(name))
+                    self.logger.log(f"[*] Testing modification of {name} ..")
                     if name in self.uefispec_ro_vars:
                         if self.can_modify(name, guid, data):
                             ro_concern.append(name)
-                            self.logger.log_bad("Variable {} should be read only.".format(name))
+                            self.logger.log_bad(f"Variable {name} should be read only.")
                             res = ModuleResult.FAILED
-                    else:
-                        if self.can_modify(name, guid, data):
-                            rw_variables.append(name)
+                    elif self.can_modify(name, guid, data):
+                        rw_variables.append(name)
 
         if uefispec_concern:
             self.logger.log('')
             self.logger.log_bad('Variables with attributes that differ from UEFI spec:')
             for name in uefispec_concern:
-                self.logger.log('    {}'.format(name))
+                self.logger.log(f'    {name}')
 
         if do_modify:
             if ro_concern:
                 self.logger.log('')
                 self.logger.log_bad('Variables that should have been read-only and were not:')
                 for name in ro_concern:
-                    self.logger.log('    {}'.format(name))
+                    self.logger.log(f'    {name}')
 
             if rw_variables:
                 self.logger.log('')
                 self.logger.log_unknown('Variables that are read-write (manual investigation is required):')
                 for name in rw_variables:
-                    self.logger.log('    {}'.format(name))
+                    self.logger.log(f'    {name}')
 
         self.logger.log('')
 

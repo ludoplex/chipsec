@@ -236,7 +236,7 @@ class TPM(hal_base.HALBase):
         #
         # Release locality if needed
         #
-        if requestedUse == True:
+        if requestedUse:
             self.helper.write_mmio_reg(access_address, 4, BEENSEIZED)
         self.helper.write_mmio_reg(access_address, 1, ACTIVELOCALITY)
 
@@ -356,7 +356,9 @@ class TPM(hal_base.HALBase):
         self.logger.log('=' * 64)
 
     def dump_register(self, register_name: str, locality: str) -> None:
-        self.cs.Cfg.REGISTERS[register_name]['address'] = str(hex(self.cs.Cfg.REGISTERS[register_name]['address'] ^ LOCALITY[locality]))
+        self.cs.Cfg.REGISTERS[register_name]['address'] = hex(
+            self.cs.Cfg.REGISTERS[register_name]['address'] ^ LOCALITY[locality]
+        )
         register = self.cs.read_register_dict(register_name)
 
         self.log_register_header(register_name, locality)

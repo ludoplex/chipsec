@@ -226,7 +226,7 @@ def decode_EFI_variables(efi_vars: Dict[str, List['EfiVariableType']], nvram_pth
     # print decoded and sorted EFI variables into a log file
     print_sorted_EFI_variables(efi_vars)
     # write each EFI variable into its own binary file
-    for name in efi_vars.keys():
+    for name in efi_vars:
         n = 0
         data: bytes
         guid: str
@@ -262,8 +262,7 @@ def parse_EFI_variables(fname: str, rom: bytes, authvars: bool, _fw_type: Option
         return False
 
     logger().log('[uefi] Searching for NVRAM in the binary..')
-    efi_vars_store = find_EFI_variable_store(rom, _fw_type)
-    if efi_vars_store:
+    if efi_vars_store := find_EFI_variable_store(rom, _fw_type):
         nvram_fname = f'{fname}.nvram.bin'
         write_file(nvram_fname, efi_vars_store)
         nvram_pth = f'{fname}.nvram.dir'
@@ -290,17 +289,19 @@ def find_EFI_variable_store(rom_buffer: Optional[bytes], _FWType: Optional[str])
     nvram_header = None
 
     if _FWType is None:
-        logger().log_hal(f'[uefi] find_EFI_variable_store(): _FWType is None. Bypassing find_EFI_variable_store().')
+        logger().log_hal(
+            '[uefi] find_EFI_variable_store(): _FWType is None. Bypassing find_EFI_variable_store().'
+        )
         return b''
     if uefi_platform.EFI_VAR_DICT[_FWType]['func_getnvstore']:
         (offset, size, nvram_header) = uefi_platform.EFI_VAR_DICT[_FWType]['func_getnvstore'](rom)
-        if (-1 == offset):
+        if offset == -1:
             logger().log_error("'func_getnvstore' is defined but could not find EFI NVRAM. Exiting..")
             return b''
     else:
         logger().log("[uefi] 'func_getnvstore' is not defined in EFI_VAR_DICT. Assuming start offset 0.")
 
-    if -1 == size:
+    if size == -1:
         size = len(rom_buffer)
     nvram_buf = rom[offset: offset + size]
 
@@ -354,19 +355,17 @@ class UEFI(hal_base.HALBase):
 
     def read_EFI_variables_from_SPI(self, BIOS_region_base: int, BIOS_region_size: int) -> bytes:
         rom = self.cs.spi.read_spi(BIOS_region_base, BIOS_region_size)
-        efi_var_store = find_EFI_variable_store(rom, self._FWType)
-        if efi_var_store:
-            efi_vars = uefi_platform.EFI_VAR_DICT[self._FWType]['func_getefivariables']
-            return efi_vars
-        return efi_var_store
+        if efi_var_store := find_EFI_variable_store(rom, self._FWType):
+            return uefi_platform.EFI_VAR_DICT[self._FWType]['func_getefivariables']
+        else:
+            return efi_var_store
 
     def read_EFI_variables_from_file(self, filename: str) -> bytes:
         rom = read_file(filename)
-        efi_var_store = find_EFI_variable_store(rom, self._FWType)
-        if efi_var_store:
-            efi_vars = uefi_platform.EFI_VAR_DICT[self._FWType]['func_getefivariables']
-            return efi_vars
-        return efi_var_store
+        if efi_var_store := find_EFI_variable_store(rom, self._FWType):
+            return uefi_platform.EFI_VAR_DICT[self._FWType]['func_getefivariables']
+        else:
+            return efi_var_store
 
     # @TODO: Do not use, will be removed
 
@@ -408,15 +407,15 @@ class UEFI(hal_base.HALBase):
                     print_buffer_bytes(data)
 
                 varsz = len(data)
-                if 4 == varsz:
+                if varsz == 4:
                     AcpiGlobalAddr_fmt = '<L'
-                elif 8 == varsz:
+                elif varsz == 8:
                     AcpiGlobalAddr_fmt = '<Q'
                 else:
                     logger().log_error(f"Unrecognized format of '{efivar_name}' UEFI variable (data size = 0x{varsz:X})")
                     break
                 AcpiGlobalAddr = struct.unpack_from(AcpiGlobalAddr_fmt, data)[0]
-                if 0 == AcpiGlobalAddr:
+                if AcpiGlobalAddr == 0:
                     logger().log_error(f'Pointer to ACPI Global Data structure in {efivar_name} variable is 0')
                     break
                 logger().log_hal(f"[uefi] Pointer to ACPI Global Data structure: 0x{AcpiGlobalAddr:016X}")
@@ -433,7 +432,7 @@ class UEFI(hal_base.HALBase):
                 logger().log_hal(f'[uefi] ACPI Boot-Script table base = 0x{AcpiBootScriptTable:016X}')
                 found = True
                 BootScript_addresses.append(AcpiBootScriptTable)
-                # break
+                        # break
         return (found, BootScript_addresses)
 
     #
@@ -532,7 +531,7 @@ class UEFI(hal_base.HALBase):
                 pa -= CHUNK_SZ
                 continue
             pos = bytestostring(membuf).find(table_sig)
-            if -1 != pos:
+            if pos != -1:
                 table_pa = pa + pos
                 logger().log_hal(f"[uefi] Round signature '{table_sig}' at 0x{table_pa:016X}...")
                 if pos < (CHUNK_SZ - EFI_TABLE_HEADER_SIZE):
@@ -590,7 +589,7 @@ class UEFI(hal_base.HALBase):
         ect_buf = b''
         (isFound, _, _, est, _) = self.find_EFI_System_Table()
         if isFound and est is not None:
-            if 0 != est.BootServices:
+            if est.BootServices != 0:
                 logger().log_hal('[uefi] UEFI appears to be in Boot mode')
                 ect_pa = est.ConfigurationTable
             else:
@@ -612,7 +611,7 @@ class UEFI(hal_base.HALBase):
         if est is not None:
             logger().log_hal(f'[uefi] EFI Configuration Table ({est.NumberOfTableEntries:d} entries): VA = 0x{est.ConfigurationTable:016X}, PA = 0x{ect_pa:016X}')
         else:
-            logger().log_hal(f'[uefi] EFI Configuration Table (No entries found)')
+            logger().log_hal('[uefi] EFI Configuration Table (No entries found)')
 
         found = ect_pa is not None
         if found and (est is not None):

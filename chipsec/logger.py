@@ -182,11 +182,11 @@ class chipsecStreamFormatter(logging.Formatter):
             if record.args[0] is not None and record.args[0] in self.colors:
                 color = record.args[0]
             record.args = tuple()
-        if color in self.colors and "linux" == self.mPlatform:
+        if color in self.colors and self.mPlatform == "linux":
             log_fmt = f'{self.csi};{self.colors[color]}m{self.infmt}{self.reset}'
         else:
             log_fmt = self.infmt
-        if color in self.colors and "windows" == self.mPlatform:
+        if color in self.colors and self.mPlatform == "windows":
             WConio.textcolor(self.colors[color])
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
@@ -257,10 +257,7 @@ class Logger:
 
         # specifying empty string (name='') effectively disables logging to file
         if name:
-            if tologpath:
-                self.LOG_FILE_NAME = os.path.join(LOG_PATH, name)
-            else:
-                self.LOG_FILE_NAME = name
+            self.LOG_FILE_NAME = os.path.join(LOG_PATH, name) if tologpath else name
             # Open new log file and keep it opened
             try:
                 # creates FileHandler for log file
@@ -425,8 +422,7 @@ def aligned_column_spacing(table_data: List[Tuple[str, Dict[str, str]]]) -> Tupl
 
 
 def clean_data_table(data_table: List[Tuple[str, Dict[str, str]]]) -> List[List[str]]:
-    clean_table = [extract_column_values(row) for row in data_table]
-    return clean_table
+    return [extract_column_values(row) for row in data_table]
 
 
 def extract_column_values(row_data: Tuple[str, Dict[str, str]]) -> List[str]:
@@ -437,15 +433,14 @@ def extract_column_values(row_data: Tuple[str, Dict[str, str]]) -> List[str]:
 
 
 def get_column_widths(data: List[List[str]]) -> List[List[int]]:
-    col_widths = [[len(col) for col in row] for row in data]
-    return col_widths
+    return [[len(col) for col in row] for row in data]
 
 
 def find_required_col_widths(col_data: List[List[int]], minimum_width=2) -> List[int]:
     columns_per_row = len(col_data[0])
     max_widths = ([(max(rows[i] for rows in col_data)) for i in range(columns_per_row)])
     for i in range(len(max_widths)):
-        max_widths[i] = max_widths[i] if max_widths[i] > minimum_width else minimum_width
+        max_widths[i] = max(max_widths[i], minimum_width)
     return max_widths
 
 ##################################################################################
@@ -458,21 +453,20 @@ def bytes2string(buffer, length=16):
     output = []
     num_string = []
     ascii_string = []
-    index = 1
-    for c in buffer:
+    for index, c in enumerate(buffer, start=1):
         num_string += [f'{ord(c):02X} ']
-        if not (c in string.printable) or (c in string.whitespace):
-            ascii_string += [' ']
-        else:
-            ascii_string += [f'{c}']
+        ascii_string += (
+            [' ']
+            if c not in string.printable or c in string.whitespace
+            else [f'{c}']
+        )
         if (index % length) == 0:
             num_string += ['| ']
             num_string += ascii_string
             output.append(''.join(num_string))
             ascii_string = []
             num_string = []
-        index += 1
-    if 0 != (len(buffer) % length):
+    if len(buffer) % length != 0:
         num_string += [(length - len(buffer) % length) * 3 * ' ']
         num_string += ['| ']
         num_string += ascii_string
@@ -496,21 +490,20 @@ def dump_buffer_bytes(arr, length=8):
     output = []
     num_string = []
     ascii_string = []
-    index = 1
-    for c in arr:
+    for index, c in enumerate(arr, start=1):
         num_string += [f'{c:02X} ']
-        if not (chr(c) in string.printable) or (chr(c) in string.whitespace):
-            ascii_string += [' ']
-        else:
-            ascii_string += [chr(c)]
+        ascii_string += (
+            [' ']
+            if chr(c) not in string.printable or chr(c) in string.whitespace
+            else [chr(c)]
+        )
         if (index % length) == 0:
             num_string += ['| ']
             num_string += ascii_string
             output.append(''.join(num_string))
             ascii_string = []
             num_string = []
-        index += 1
-    if 0 != (len(arr) % length):
+    if len(arr) % length != 0:
         num_string += [(length - len(arr) % length) * 3 * ' ']
         num_string += ['| ']
         num_string += ascii_string

@@ -281,9 +281,7 @@ def IsValidPEHeader(data):
     if (size - e_lfanew) < IMAGE_NT_HEADERS_size:
         return False
     pe_signature, = struct.unpack("<I", data[e_lfanew:e_lfanew + 4])
-    if pe_signature != IMAGE_NT_SIGNATURE:
-        return False
-    return True
+    return pe_signature == IMAGE_NT_SIGNATURE
 
 
 def replace_header(data):
@@ -336,8 +334,7 @@ def replace_header(data):
         DEBUG = data[debug_off:debug_off + IMAGE_DATA_DIRECTORY_size]
     te_header = struct.pack(EFI_TE_IMAGE_HEADER,
                             EFI_TE_IMAGE_HEADER_SIGNATURE, Machine, NumberOfSections, Subsystem, StrippedSize, AddressOfEntryPoint, BaseOfCode, ImageBase)
-    te_data = te_header + BASERELOC + DEBUG + data[StrippedSize:]
-    return te_data
+    return te_header + BASERELOC + DEBUG + data[StrippedSize:]
 
 
 def produce_te(fname, outfname):
@@ -354,11 +351,11 @@ def produce_te(fname, outfname):
 
 def replace_efi_binary(orig_efi_binary, new_efi_binary):
     logger().log(f'[*] Replacing EFI binary \'{orig_efi_binary}\'..')
-    te_binary = new_efi_binary + '.te'
+    te_binary = f'{new_efi_binary}.te'
     if not os.path.exists(te_binary):
         produce_te(new_efi_binary, te_binary)
     # back up original binary
-    backup = orig_efi_binary + '.bak'
+    backup = f'{orig_efi_binary}.bak'
     if not os.path.exists(backup):
         os.rename(orig_efi_binary, backup)
     try:
@@ -423,7 +420,7 @@ def replace_bootloader(bootloader_paths, new_bootloader_file, do_mount=True):
 
 def restore_efi_binary(orig_efi_binary):
     logger().log(f'[*] Restoring {orig_efi_binary}..')
-    backup = orig_efi_binary + ".bak"
+    backup = f"{orig_efi_binary}.bak"
     if not os.path.exists(backup):
         logger().log_error(f'Cannot restore original binary: \'{backup}\' not found')
         return False
@@ -511,7 +508,7 @@ class te(BaseModule):
         te_cfg = DEFAULT_CONFIG_FILE_PATH
         mode = module_argv[0] if len(module_argv) > 0 else 'generate_te'
 
-        if 'generate_te' == mode:
+        if mode == 'generate_te':
             if len(module_argv) > 1:
                 file_path = module_argv[1]
             if not os.path.exists(file_path):
@@ -520,7 +517,7 @@ class te(BaseModule):
 
             sts = replace_efi_binary(file_path, file_path)
 
-        elif ('restore_bootloader' == mode) or ('replace_bootloader' == mode):
+        elif mode in ['restore_bootloader', 'replace_bootloader']:
             confirm()
 
             if len(module_argv) > 1:
@@ -535,9 +532,9 @@ class te(BaseModule):
                 return ModuleResult.SKIPPED
 
             do_mount = self.cs.os_helper.is_windows()  # @TODO
-            if 'restore_bootloader' == mode:
+            if mode == 'restore_bootloader':
                 sts = restore_bootloader(bootloader_paths, do_mount)
-            elif 'replace_bootloader' == mode:
+            elif mode == 'replace_bootloader':
                 if len(module_argv) > 2:
                     file_path = module_argv[2]
                 sts = replace_bootloader(bootloader_paths, file_path, do_mount)

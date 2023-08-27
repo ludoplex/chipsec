@@ -50,7 +50,7 @@ class IGD(hal_base.HALBase):
                 self.dev_id = self.cs.read_register("PCI0.2.0_DID")
                 self.enabled = (self.dev_id != 0xFFFF)
                 if self.enabled:
-                    self.is_legacy = bool(self.dev_id < 0x1600)
+                    self.is_legacy = self.dev_id < 0x1600
             except Exception:
                 self.enabled = False
 
@@ -182,8 +182,7 @@ class IGD(hal_base.HALBase):
             pages = 1 + size // 0x1000
 
         N = pages
-        self.logger.log_hal(f'[igd] Pages = 0x{pages:X}, r = 0x{r:X}, N = {N:d}')
-
+        self.logger.log_hal(f'[igd] Pages = 0x{N:X}, r = 0x{r:X}, N = {N:d}')
         self.logger.log_hal(f'[igd] Original data at address 0x{address:016X}:')
         if self.logger.HAL:
             print_buffer_bytes(self.cs.mem.read_physical_mem(address, size))

@@ -69,7 +69,7 @@ class bios_smi(BaseModule):
         # Checking SMM_BWP first in BIOS control to warn if SMM write-protection of the BIOS is not enabled
         #
         smm_bwp = self.cs.get_control('SmmBiosWriteProtection')
-        if 0 == smm_bwp:
+        if smm_bwp == 0:
             self.logger.log_bad("SMM BIOS region write protection has not been enabled (SMM_BWP is not used)\n")
         else:
             self.logger.log_good("SMM BIOS region write protection is enabled (SMM_BWP is used)\n")
@@ -93,7 +93,7 @@ class bios_smi(BaseModule):
             elif (tco_en != 1) and (smm_bwp != 1):
                 warn = True
                 self.logger.log_warning("TCO SMI is not enabled. BIOS may not be using it")
-            elif (tco_en != 1) and (smm_bwp == 1):
+            elif tco_en != 1:
                 ok = False
                 self.logger.log_bad("TCO SMI should be enabled if using SMM BIOS region protection")
             else:
@@ -125,7 +125,7 @@ class bios_smi(BaseModule):
         if ok and not warn:
             res = ModuleResult.PASSED
             self.logger.log_passed("All required SMI sources seem to be enabled and locked")
-        elif ok and warn:
+        elif ok:
             res = ModuleResult.WARNING
             self.logger.log_warning("One or more warnings detected when checking SMI enable state")
         else:

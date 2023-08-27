@@ -146,7 +146,7 @@ class Chipset:
                         logger().log_error(msg)
                         raise UnknownChipsetError(msg)
                     else:
-                        logger().log("[!]       {}; Using Default.".format(msg))
+                        logger().log(f"[!]       {msg}; Using Default.")
             if not _unknown_proc:  # Don't initialize config if platform is unknown
                 self.Cfg.load_platform_config()
                 # Load Bus numbers for this platform.
@@ -156,13 +156,13 @@ class Chipset:
                 self.Cfg.print_bus_zero_dids()
                 msg = 'Unknown PCH: VID = 0x{:04X}, DID = 0x{:04X}, RID = 0x{:02X}'.format(self.Cfg.pch_vid, self.Cfg.pch_did, self.Cfg.pch_rid)
                 if self.Cfg.is_pch_req() and start_helper:
-                    logger().log_error("Chipset requires a supported PCH to be loaded. {}".format(msg))
+                    logger().log_error(f"Chipset requires a supported PCH to be loaded. {msg}")
                     raise UnknownChipsetError(msg)
                 else:
-                    logger().log("[!]       {}; Using Default.".format(msg))
+                    logger().log(f"[!]       {msg}; Using Default.")
         if _unknown_pch or _unknown_proc:
             msg = 'Results from this system may be incorrect.'
-            logger().log("[!]            {}".format(msg))
+            logger().log(f"[!]            {msg}")
 
 
 
@@ -186,10 +186,8 @@ class Chipset:
                 raise OsHelperError("failed to start OS helper", 1)
         except Exception as msg:
             logger().log_debug(traceback.format_exc())
-            error_no = ENXIO
-            if hasattr(msg, 'errorcode'):
-                error_no = msg.errorcode
-            raise OsHelperError("Message: \"{}\"".format(msg), error_no)
+            error_no = msg.errorcode if hasattr(msg, 'errorcode') else ENXIO
+            raise OsHelperError(f'Message: \"{msg}\"', error_no)
         
 
     def switch_helper(self, helper_name):
@@ -202,9 +200,8 @@ class Chipset:
     def destroy_helper(self):
         if not self.helper.stop():
             logger().log_warning("failed to stop OS helper")
-        else:
-            if not self.helper.delete():
-                logger().log_warning("failed to delete OS helper")
+        elif not self.helper.delete():
+            logger().log_warning("failed to delete OS helper")
 
     def is_core(self):
         return self.Cfg.get_chipset_code() in PROC_FAMILY["core"]
@@ -254,7 +251,7 @@ class Chipset:
     def get_device_BDF(self, device_name):
         device = self.Cfg.CONFIG_PCI[device_name]
         if device is None or device == {}:
-            raise DeviceNotFoundError('DeviceNotFound: {}'.format(device_name))
+            raise DeviceNotFoundError(f'DeviceNotFound: {device_name}')
         b = device['bus']
         d = device['dev']
         f = device['fun']
@@ -274,11 +271,8 @@ class Chipset:
         if reg_name in self.Cfg.REGISTERS:
             reg = self.get_register_def(reg_name)
             rtype = reg['type']
-            if (rtype == RegisterType.MMCFG) or (rtype == RegisterType.PCICFG):
-                if bus is not None:
-                    b = bus
-                else:
-                    b = reg['bus']
+            if rtype in [RegisterType.MMCFG, RegisterType.PCICFG]:
+                b = bus if bus is not None else reg['bus']
                 d = reg['dev']
                 f = reg['fun']
                 return self.pci.is_enabled(b, d, f)
@@ -342,10 +336,7 @@ class Chipset:
             return False
 
     def is_device_defined(self, dev_name):
-        if self.Cfg.CONFIG_PCI.get(dev_name, None) is None:
-            return False
-        else:
-            return True
+        return self.Cfg.CONFIG_PCI.get(dev_name, None) is not None
 
     def get_register_def(self, reg_name):
         reg_def = self.Cfg.REGISTERS[reg_name]
@@ -367,10 +358,7 @@ class Chipset:
             elif reg_def["type"] == "indirect":
                 if dev_name in self.Cfg.IMA_REGISTERS:
                     dev = self.Cfg.IMA_REGISTERS[dev_name]
-                    if ('base' in dev):
-                        reg_def['base'] = dev['base']
-                    else:
-                        reg_def['base'] = "0"
+                    reg_def['base'] = dev['base'] if ('base' in dev) else "0"
                     if (dev['index'] in self.Cfg.REGISTERS):
                         reg_def['index'] = dev['index']
                     else:
@@ -406,12 +394,10 @@ class Chipset:
                 if logger().DEBUG:
                     logger().log_important(f"Using pre-defined bus values for device '{dev_name}'")
                 buses = [bus]
-            else:
-                if logger().DEBUG:
-                    logger().log_important(f"Device '{dev_name}' not enabled")
-        else:
-            if logger().DEBUG:
-                logger().log_important(f"No bus value defined for device '{dev_name}'")
+            elif logger().DEBUG:
+                logger().log_important(f"Device '{dev_name}' not enabled")
+        elif logger().DEBUG:
+            logger().log_important(f"No bus value defined for device '{dev_name}'")
         return buses
 
     def read_register(self, reg_name, cpu_thread=0, bus=None, do_check=True):
@@ -419,10 +405,7 @@ class Chipset:
         rtype = reg['type']
         reg_value = 0
         if (RegisterType.PCICFG == rtype) or (RegisterType.MMCFG == rtype):
-            if bus is not None:
-                b = bus
-            else:
-                b = reg['bus']
+            b = bus if bus is not None else reg['bus']
             d = reg['dev']
             f = reg['fun']
             o = reg['offset']
@@ -431,13 +414,13 @@ class Chipset:
                 if self.pci.get_DIDVID(b, d, f) == (0xFFFF, 0xFFFF):
                     raise CSReadError(f'PCI Device is not available ({b}:{d}.{f})')
             if RegisterType.PCICFG == rtype:
-                if 1 == size:
+                if size == 1:
                     reg_value = self.pci.read_byte(b, d, f, o)
-                elif 2 == size:
+                elif size == 2:
                     reg_value = self.pci.read_word(b, d, f, o)
-                elif 4 == size:
+                elif size == 4:
                     reg_value = self.pci.read_dword(b, d, f, o)
-                elif 8 == size:
+                elif size == 8:
                     reg_value = (self.pci.read_dword(b, d, f, o + 4) << 32) | self.pci.read_dword(b, d, f, o)
             elif RegisterType.MMCFG == rtype:
                 reg_value = self.mmio.read_mmcfg_reg(b, d, f, o, size)
@@ -466,13 +449,13 @@ class Chipset:
         elif RegisterType.MEMORY == rtype:
             if reg['access'] == 'dram':
                 size = reg['size']
-                if 1 == size:
+                if size == 1:
                     reg_value = self.mem.read_physical_mem_byte(reg['address'])
-                elif 2 == size:
+                elif size == 2:
                     reg_value = self.mem.read_physical_mem_word(reg['address'])
-                elif 4 == size:
+                elif size == 4:
                     reg_value = self.mem.read_physical_mem_dword(reg['address'])
-                elif 8 == size:
+                elif size == 8:
                     reg_value = self.mem.read_physical_mem_qword(reg['address'])
             elif reg['access'] == 'mmio':
                 reg_value = self.mmio.read_MMIO_reg(reg['address'], reg['offset'], reg['size'])
@@ -499,12 +482,13 @@ class Chipset:
                 threads_to_use = [cores[p][0] for p in cores]
             else:  # Default to threads
                 threads_to_use = range(self.helper.get_threads_count())
-            for t in threads_to_use:
-                values.append(self.read_register(reg_name, t))
+            values.extend(self.read_register(reg_name, t) for t in threads_to_use)
         elif rtype in [RegisterType.MMCFG, RegisterType.PCICFG, RegisterType.MMIO]:
             if bus_data:
-                for bus in bus_data:
-                    values.append(self.read_register(reg_name, cpu_thread, bus))
+                values.extend(
+                    self.read_register(reg_name, cpu_thread, bus)
+                    for bus in bus_data
+                )
         else:
             values.append(self.read_register(reg_name, cpu_thread))
         return values

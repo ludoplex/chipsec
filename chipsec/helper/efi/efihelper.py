@@ -113,12 +113,10 @@ class EfiHelper(Helper):
         pa_lo, pa_hi = self.split_address(phys_address)
         if type(buf) == bytearray:
             buf = bytes(buf)
-        if 4 == length:
-            dword_value = struct.unpack('I', buf)[0]
-            res = edk2.writemem_dword(pa_lo, pa_hi, dword_value)
-        else:
-            res = edk2.writemem(pa_lo, pa_hi, buf)
-        return res
+        if length != 4:
+            return edk2.writemem(pa_lo, pa_hi, buf)
+        dword_value = struct.unpack('I', buf)[0]
+        return edk2.writemem_dword(pa_lo, pa_hi, dword_value)
 
     def alloc_phys_mem(self, length: int, max_pa: int) -> Tuple[int, int]:
         va = edk2.allocphysmem(length, max_pa)[0]
@@ -127,12 +125,12 @@ class EfiHelper(Helper):
 
     def va2pa(self, va: int) -> Tuple[int, int]:
         pa = va  # UEFI shell has identity mapping
-        logger().log_debug(f'[helper] VA (0X{va:016X}) -> PA (0X{pa:016X})')
+        logger().log_debug(f'[helper] VA (0X{pa:016X}) -> PA (0X{pa:016X})')
         return (pa, 0)
 
     def pa2va(self, pa: int) -> int:
         va = pa  # UEFI Shell has identity mapping
-        logger().log_debug(f'[helper] PA (0X{pa:016X}) -> VA (0X{va:016X})')
+        logger().log_debug(f'[helper] PA (0X{va:016X}) -> VA (0X{va:016X})')
         return va
 
     #
@@ -146,36 +144,33 @@ class EfiHelper(Helper):
         phys_address_lo = phys_address & 0xFFFFFFFF
         phys_address_hi = (phys_address >> 32) & 0xFFFFFFFF
         out_buf = edk2.readmem(phys_address_lo, phys_address_hi, size)
-        if size == 8:
-            value = struct.unpack('=Q', out_buf[:size])[0]
-        elif size == 4:
-            value = struct.unpack('=I', out_buf[:size])[0]
+        if size == 1:
+            return struct.unpack('=B', out_buf[:size])[0]
         elif size == 2:
-            value = struct.unpack('=H', out_buf[:size])[0]
-        elif size == 1:
-            value = struct.unpack('=B', out_buf[:size])[0]
+            return struct.unpack('=H', out_buf[:size])[0]
+        elif size == 4:
+            return struct.unpack('=I', out_buf[:size])[0]
+        elif size == 8:
+            return struct.unpack('=Q', out_buf[:size])[0]
         else:
-            value = 0
-        return value
+            return 0
 
     def write_mmio_reg(self, phys_address: int, size: int, value: int) -> int:
         phys_address_lo = phys_address & 0xFFFFFFFF
         phys_address_hi = (phys_address >> 32) & 0xFFFFFFFF
         if size == 4:
-            ret = edk2.writemem_dword(phys_address_lo, phys_address_hi, value)
-        else:
-            buf = struct.pack(size * "B", value)
-            ret = edk2.writemem(phys_address_lo, phys_address_hi, buf)
-        return ret
+            return edk2.writemem_dword(phys_address_lo, phys_address_hi, value)
+        buf = struct.pack(size * "B", value)
+        return edk2.writemem(phys_address_lo, phys_address_hi, buf)
 
     #
     # PCIe configuration access
     #
 
     def read_pci_reg(self, bus: int, device: int, function: int, address: int, size: int) -> int:
-        if (1 == size):
+        if size == 1:
             return (edk2.readpci(bus, device, function, address, size) & 0xFF)
-        elif (2 == size):
+        elif size == 2:
             return (edk2.readpci(bus, device, function, address, size) & 0xFFFF)
         else:
             return edk2.readpci(bus, device, function, address, size)
@@ -188,9 +183,9 @@ class EfiHelper(Helper):
     #
 
     def read_io_port(self, io_port: int, size: int) -> int:
-        if (1 == size):
+        if size == 1:
             return (edk2.readio(io_port, size) & 0xFF)
-        elif (2 == size):
+        elif size == 2:
             return (edk2.readio(io_port, size) & 0xFFFF)
         else:
             return edk2.readio(io_port, size)
@@ -290,8 +285,8 @@ class EfiHelper(Helper):
         buf = b''
         hdr = 0
         attr = 0
-        var_list = list()
-        variables = dict()
+        var_list = []
+        variables = {}
 
         status_dict = {0: "EFI_SUCCESS", 1: "EFI_LOAD_ERROR", 2: "EFI_INVALID_PARAMETER", 3: "EFI_UNSUPPORTED", 4: "EFI_BAD_BUFFER_SIZE", 5: "EFI_BUFFER_TOO_SMALL",
                        6: "EFI_NOT_READY", 7: "EFI_DEVICE_ERROR", 8: "EFI_WRITE_PROTECTED", 9: "EFI_OUT_OF_RESOURCES", 14: "EFI_NOT_FOUND", 26: "EFI_SECURITY_VIOLATION"}

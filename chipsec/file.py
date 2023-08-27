@@ -46,10 +46,7 @@ TOOLS_DIR = 'chipsec_tools'
 def read_file(filename: str, size: int = 0) -> bytes:
     try:
         with open(filename, 'rb') as f:
-            if size:
-                _file = f.read(size)
-            else:
-                _file = f.read()
+            _file = f.read(size) if size else f.read()
             logger().log_debug(f"[file] Read {len(_file):d} bytes from '{filename:.256}'")
             return _file
 
@@ -60,7 +57,7 @@ def read_file(filename: str, size: int = 0) -> bytes:
 
 def write_file(filename: str, buffer: Any, append: bool = False) -> bool:
     perm = 'a' if append else 'w'
-    if isinstance(buffer, bytes) or isinstance(buffer, bytearray):
+    if isinstance(buffer, (bytes, bytearray)):
         perm += 'b'
     try:
         f = open(filename, perm)

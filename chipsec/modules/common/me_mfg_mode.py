@@ -103,17 +103,16 @@ class me_mfg_mode(BaseModule):
     def is_supported(self):
         if self.cs.is_device_enabled("MEI1"):
             return True
-        else:
-            self.logger.log_important('MEI1 not enabled.  Skipping module.')
-            self.res = ModuleResult.NOTAPPLICABLE
-            return False
+        self.logger.log_important('MEI1 not enabled.  Skipping module.')
+        self.res = ModuleResult.NOTAPPLICABLE
+        return False
 
     def check_me_mfg_mode(self):
         me_mfg_mode_res = ModuleResult.FAILED
         me_hfs_reg = self.cs.read_register('HFS')
         me_mfg_mode = self.cs.get_register_field('HFS', me_hfs_reg, 'MFG_MODE')
 
-        if 0 == me_mfg_mode:
+        if me_mfg_mode == 0:
             me_mfg_mode_res = ModuleResult.PASSED
             self.logger.log_passed("ME is not in Manufacturing Mode")
         else:

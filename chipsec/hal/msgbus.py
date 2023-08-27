@@ -103,13 +103,17 @@ class MsgBus(hal_base.HALBase):
 
     def __MB_MESSAGE_MCRX(self, reg: int) -> int:
         mcrx = 0x0
-        mcrx = self.cs.set_register_field('MSG_CTRL_REG_EXT', mcrx, 'MESSAGE_ADDRESS_OFFSET_EXT', (reg >> 8), preserve_field_position=True)
-        return mcrx
+        return self.cs.set_register_field(
+            'MSG_CTRL_REG_EXT',
+            mcrx,
+            'MESSAGE_ADDRESS_OFFSET_EXT',
+            (reg >> 8),
+            preserve_field_position=True,
+        )
 
     def __MB_MESSAGE_MDR(self, data: int) -> int:
         mdr = 0x0
-        mdr = self.cs.set_register_field('MSG_DATA_REG', mdr, 'MESSAGE_DATA', data)
-        return mdr
+        return self.cs.set_register_field('MSG_DATA_REG', mdr, 'MESSAGE_DATA', data)
 
     def __hide_p2sb(self, hide: bool) -> bool:
         if not self.p2sbHide:

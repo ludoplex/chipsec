@@ -223,7 +223,7 @@ class ACPI(HALBase):
         if ebda_addr > 0x400 and ebda_addr < 0xA0000:
             membuf = self.cs.mem.read_physical_mem(ebda_addr, 0xA0000 - ebda_addr)
             pos = bytestostring(membuf).find(ACPI_RSDP_SIG)
-            if -1 != pos:
+            if pos != -1:
                 rsdp_pa = ebda_addr + pos
                 rsdp = self.read_RSDP(rsdp_pa)
                 if rsdp.is_RSDP_valid():
@@ -241,7 +241,7 @@ class ACPI(HALBase):
         membuf = self.cs.mem.read_physical_mem(0xE0000, 0x20000)
         membuf = bytestostring(membuf)
         pos = bytestostring(membuf).find(ACPI_RSDP_SIG)
-        if -1 != pos:
+        if pos != -1:
             rsdp_pa = 0xE0000 + pos
             rsdp = self.read_RSDP(rsdp_pa)
             if rsdp.is_RSDP_valid():
@@ -287,7 +287,7 @@ class ACPI(HALBase):
         while pa > CHUNK_SZ:
             membuf = self.cs.mem.read_physical_mem(pa, CHUNK_SZ)
             pos = bytestostring(membuf).find(ACPI_RSDP_SIG)
-            if -1 != pos:
+            if pos != -1:
                 rsdp_pa = pa + pos
                 logger().log_hal(f"[acpi] Found '{ACPI_RSDP_SIG}' signature at 0x{rsdp_pa:16X}. Checking if valid RSDP.")
                 rsdp = self.read_RSDP(rsdp_pa)
@@ -329,10 +329,10 @@ class ACPI(HALBase):
         if search_rsdp:
             (_, rsdp) = self.find_RSDP()
             if rsdp is not None:
-                if 0x0 == rsdp.Revision:
+                if rsdp.Revision == 0x0:
                     sdt_pa = rsdp.RsdtAddress
                     is_xsdt = False
-                elif 0x2 == rsdp.Revision:
+                elif rsdp.Revision == 0x2:
                     sdt_pa = rsdp.XsdtAddress
                     is_xsdt = True
                 else:
@@ -377,8 +377,7 @@ class ACPI(HALBase):
             #    reading ACPI tables via native API which some OS may provide
             logger().log_hal("[acpi] Trying to enumerate ACPI tables using get_ACPI_table...")
             for t in ACPI_TABLES.keys():
-                table = self.cs.helper.get_ACPI_table(t)
-                if table:
+                if table := self.cs.helper.get_ACPI_table(t):
                     self.tableList[t].append(0)
 
         return self.tableList
@@ -472,11 +471,10 @@ class ACPI(HALBase):
                 t_data = self.cs.helper.get_ACPI_table(name)
                 acpi_tables_data.append(t_data)
 
-        acpi_tables = []
-        for data in acpi_tables_data:
-            acpi_tables.append((data[: ACPI_TABLE_HEADER_SIZE], data[ACPI_TABLE_HEADER_SIZE:]))
-
-        return acpi_tables
+        return [
+            (data[:ACPI_TABLE_HEADER_SIZE], data[ACPI_TABLE_HEADER_SIZE:])
+            for data in acpi_tables_data
+        ]
 
     #
     # Dumps contents of ACPI table
@@ -518,7 +516,7 @@ class ACPI(HALBase):
         if ACPI_TABLES.__contains__(signature):
             logger().log_hal(f'{signature}')
             if 'BERT' in signature:
-                BootRegionLen = struct.unpack('<L', contents[0:4])[0]
+                BootRegionLen = struct.unpack('<L', contents[:4])[0]
                 BootRegionAddr = struct.unpack('<Q', contents[4:12])[0]
                 bootRegion = self.cs.mem.read_physical_mem(BootRegionAddr, BootRegionLen)
                 table = (ACPI_TABLES[signature])(bootRegion)

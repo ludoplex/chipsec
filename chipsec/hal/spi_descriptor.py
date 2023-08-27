@@ -38,7 +38,7 @@ SPI_FLASH_DESCRIPTOR_SIZE = 0x1000
 
 def get_spi_flash_descriptor(rom: bytes) -> Tuple[int, bytes]:
     pos = rom.find(SPI_FLASH_DESCRIPTOR_SIGNATURE)
-    if (-1 == pos or pos < 0x10):
+    if pos == -1 or pos < 0x10:
         return (-1, b'')
     fd_off = pos - 0x10
     fd = rom[fd_off: fd_off + SPI_FLASH_DESCRIPTOR_SIZE]
@@ -54,7 +54,7 @@ def get_SPI_master(flmstr: int) -> Tuple[int, int, int]:
 
 def get_spi_regions(fd: bytes) -> Optional[List[Tuple[int, str, int, int, int, bool]]]:
     pos = fd.find(SPI_FLASH_DESCRIPTOR_SIGNATURE)
-    if not (pos == 0x10):
+    if pos != 0x10:
         return None
 
     flmap0 = struct.unpack_from('=I', fd[0x14:0x18])[0]
@@ -71,10 +71,7 @@ def get_spi_regions(fd: bytes) -> Optional[List[Tuple[int, str, int, int, int, b
 
     fd_size = flregs[spi.FLASH_DESCRIPTOR][4] - flregs[spi.FLASH_DESCRIPTOR][3] + 1
     fd_notused = flregs[spi.FLASH_DESCRIPTOR][5]
-    if fd_notused or (fd_size != SPI_FLASH_DESCRIPTOR_SIZE):
-        return None
-
-    return flregs
+    return None if fd_notused or (fd_size != SPI_FLASH_DESCRIPTOR_SIZE) else flregs
 
 
 def parse_spi_flash_descriptor(cs, rom: bytes) -> None:

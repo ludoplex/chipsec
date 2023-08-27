@@ -59,11 +59,7 @@ class toLoad(Enum):
     All = 3
 
     def load_config(self) -> bool:
-        if self in [self.Config, self.All]:
-            return True
-        return False
+        return self in [self.Config, self.All]
 
     def load_driver(self) -> bool:
-        if self in [self.Driver, self.All]:
-            return True
-        return False
+        return self in [self.Driver, self.All]

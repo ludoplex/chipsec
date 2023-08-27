@@ -203,9 +203,7 @@ class XROM:
 
 
 def get_vendor_name_by_vid(vid: int) -> str:
-    if vid in VENDORS:
-        return VENDORS[vid]
-    return ''
+    return VENDORS[vid] if vid in VENDORS else ''
 
 
 def get_device_name_by_didvid(vid: int, did: int) -> str:
@@ -225,7 +223,7 @@ def print_pci_devices(_devices: List[Tuple[int, int, int, int, int]]) -> None:
 
 
 def print_pci_XROMs(_xroms: List[XROM]) -> None:
-    if len(_xroms) == 0:
+    if not _xroms:
         return None
     logger().log("BDF     | VID:DID   | XROM base | XROM size | en ")
     logger().log("-------------------------------------------------")
@@ -280,24 +278,14 @@ class Pci:
     def enumerate_devices(self, bus: Optional[int] = None, device: Optional[int] = None, function: Optional[int] = None, spec: Optional[bool] = True) -> List[Tuple[int, int, int, int, int, int]]:
         devices = []
 
-        if bus is not None:
-            bus_range = [bus]
-        else:
-            bus_range = range(256)
-        if device is not None:
-            dev_range = [device]
-        else:
-            dev_range = range(32)
-        if function is not None:
-            func_range = [function]
-        else:
-            func_range = range(8)
-
+        bus_range = [bus] if bus is not None else range(256)
+        dev_range = [device] if device is not None else range(32)
+        func_range = [function] if function is not None else range(8)
         for b, d in itertools.product(bus_range, dev_range):
             for f in func_range:
                 try:
                     did_vid = self.read_dword(b, d, f, 0x0)
-                    if 0xFFFFFFFF != did_vid:
+                    if did_vid != 0xFFFFFFFF:
                         vid = did_vid & 0xFFFF
                         did = (did_vid >> 16) & 0xFFFF
                         rid = self.read_byte(b, d, f, 0x8)
@@ -312,8 +300,7 @@ class Pci:
         cfg = []
         for off in range(0, 0x100, 4):
             tmp_val = self.read_dword(bus, device, function, off)
-            for shift in range(0, 32, 8):
-                cfg.append((tmp_val >> shift) & 0xFF)
+            cfg.extend((tmp_val >> shift) & 0xFF for shift in range(0, 32, 8))
         return cfg
 
     def print_pci_config_all(self) -> None:
@@ -377,14 +364,14 @@ class Pci:
                     xrom_bar = self.read_dword(bus, dev, fun, xrom_bar_off)
                     logger().log_hal(f'[pci]   programmed XROM BAR with 0x{xrom_bar:08X}')
 
-        #
-        # At this point, a device indicates that XROM exists. Let's check if XROM is really there
-        #
-        xrom_en = (xrom_bar & PCI_HDR_XROM_BAR_EN_MASK) == 0x1
         xrom_base = xrom_bar & PCI_HDR_XROM_BAR_BASE_MASK
         xrom_size = ~xrom_base + 1
 
         if xrom_exists:
+            #
+            # At this point, a device indicates that XROM exists. Let's check if XROM is really there
+            #
+            xrom_en = (xrom_bar & PCI_HDR_XROM_BAR_EN_MASK) == 0x1
             logger().log_hal(f'[pci]   XROM: BAR = 0x{xrom_bar:08X}, base = 0x{xrom_base:08X}, size = 0x{xrom_size:X}, en = {xrom_en:d}')
             xrom = XROM(bus, dev, fun, xrom_en, xrom_base, xrom_size)
             if xrom_en and (xrom_base != PCI_HDR_XROM_BAR_BASE_MASK):
@@ -422,8 +409,7 @@ class Pci:
         self.write_dword(bus, dev, fun, off, defines.MASK_32b)
         reg1 = self.read_dword(bus, dev, fun, off)
         self.write_dword(bus, dev, fun, off, reg)
-        size = (~(reg1 & PCI_HDR_BAR_BASE_MASK_MMIO) & defines.MASK_32b) + 1
-        return size
+        return (~(reg1 & PCI_HDR_BAR_BASE_MASK_MMIO) & defines.MASK_32b) + 1
     #
     # Returns all I/O and MMIO BARs defined in the PCIe header of the device
     # Returns array of elements in format (BAR_address, isMMIO, is64bit, BAR_reg_offset, BAR_reg_value)
@@ -436,9 +422,9 @@ class Pci:
         while off <= PCI_HDR_TYPE0_BAR2_HI_OFF:
             reg = self.read_dword(bus, dev, fun, off)
             if reg and reg != defines.MASK_32b:
-                # BAR is initialized
-                isMMIO = PCI_HDR_BAR_IOMMIO_MMIO == (reg & PCI_HDR_BAR_IOMMIO_MASK)
-                if isMMIO:
+                if isMMIO := PCI_HDR_BAR_IOMMIO_MMIO == (
+                    reg & PCI_HDR_BAR_IOMMIO_MASK
+                ):
                     # MMIO BAR
                     _type = (reg & PCI_HDR_BAR_TYPE_MASK) >> PCI_HDR_BAR_TYPE_SHIFT
                     if PCI_HDR_BAR_TYPE_64B == _type:
@@ -475,6 +461,4 @@ class Pci:
 
     def is_enabled(self, bus: int, dev: int, fun: int) -> bool:
         (did, vid) = self.get_DIDVID(bus, dev, fun)
-        if (is_all_ones(vid, 2)) or (is_all_ones(did, 2)):
-            return False
-        return True
+        return not (is_all_ones(vid, 2)) and not (is_all_ones(did, 2))

@@ -118,18 +118,16 @@ class LinuxHelper(Helper):
         a1 = ""
         a2 = ""
         if self.SUPPORT_KERNEL26_GET_PAGE_IS_RAM:
-            page_is_ram = self.get_page_is_ram()
-            if not page_is_ram:
-                logger().log_debug("Cannot find symbol 'page_is_ram'")
-            else:
+            if page_is_ram := self.get_page_is_ram():
                 a1 = f"a1=0x{page_is_ram}"
-        if self.SUPPORT_KERNEL26_GET_PHYS_MEM_ACCESS_PROT:
-            phys_mem_access_prot = self.get_phys_mem_access_prot()
-            if not phys_mem_access_prot:
-                logger().log_debug("Cannot find symbol 'phys_mem_access_prot'")
             else:
+                logger().log_debug("Cannot find symbol 'page_is_ram'")
+        if self.SUPPORT_KERNEL26_GET_PHYS_MEM_ACCESS_PROT:
+            if phys_mem_access_prot := self.get_phys_mem_access_prot():
                 a2 = f'a2=0x{phys_mem_access_prot}'
 
+            else:
+                logger().log_debug("Cannot find symbol 'phys_mem_access_prot'")
         driver_path = os.path.join(chipsec.file.get_main_dir(), "chipsec", "helper", "linux", "chipsec.ko")
         if not os.path.exists(driver_path):
             driver_path += ".xz"
@@ -183,7 +181,7 @@ class LinuxHelper(Helper):
         return True
 
     def init(self) -> None:
-        x64 = True if sys.maxsize > 2**32 else False
+        x64 = sys.maxsize > 2**32
         self._pack = 'Q' if x64 else 'I'
 
         estr = "Unable to open chipsec device. Did you run as root/sudo and load the driver?\n {}"
@@ -236,10 +234,9 @@ class LinuxHelper(Helper):
         if self.dev_fh is not None:
             if newval is None:
                 return self.dev_fh.read(sz)
-            else:
-                res = self.dev_fh.write(newval)
-                self.dev_fh.flush()
-                return res.to_bytes(2, 'little')
+            res = self.dev_fh.write(newval)
+            self.dev_fh.flush()
+            return res.to_bytes(2, 'little')
         return b''
 
     def write_phys_mem(self, phys_address: int, length: int, newval: bytes) -> int:
@@ -316,9 +313,9 @@ class LinuxHelper(Helper):
         in_buf = struct.pack(f'3{self._pack}', io_port, size, 0)
         out_buf = self.ioctl(IOCTL_RDIO, in_buf)
         try:
-            if 1 == size:
+            if size == 1:
                 value = struct.unpack(f'3{self._pack}', out_buf)[2] & 0xff
-            elif 2 == size:
+            elif size == 2:
                 value = struct.unpack(f'3{self._pack}', out_buf)[2] & 0xffff
             else:
                 value = struct.unpack(f'3{self._pack}', out_buf)[2] & 0xffffffff
@@ -375,7 +372,7 @@ class LinuxHelper(Helper):
         return struct.unpack(f'4{self._pack}', out_buf)
 
     def alloc_phys_mem(self, num_bytes: int, max_addr: int):
-        in_buf = struct.pack("2" + self._pack, num_bytes, max_addr)
+        in_buf = struct.pack(f"2{self._pack}", num_bytes, max_addr)
         out_buf = self.ioctl(IOCTL_ALLOC_PHYSMEM, in_buf)
         return struct.unpack(f'2{self._pack}', out_buf)
 
@@ -417,8 +414,7 @@ class LinuxHelper(Helper):
         else:
             in_buf = struct.pack(f'5{self._pack}', (MSGBUS_MDR_IN_MASK | MSGBUS_MDR_OUT_MASK), mcr, mcrx, mdr, mdr_out)
         out_buf = self.ioctl(IOCTL_MSGBUS_SEND_MESSAGE, in_buf)
-        mdr_out = struct.unpack(f'5{self._pack}', out_buf)[4]
-        return mdr_out
+        return struct.unpack(f'5{self._pack}', out_buf)[4]
 
     #
     # Affinity functions
@@ -462,13 +458,11 @@ class LinuxHelper(Helper):
     #
 
     def kern_get_EFI_variable_full(self, name: str, guid: str) -> 'EfiVariableType':
-        status_dict = {0: "EFI_SUCCESS", 1: "EFI_LOAD_ERROR", 2: "EFI_INVALID_PARAMETER", 3: "EFI_UNSUPPORTED", 4: "EFI_BAD_BUFFER_SIZE", 5: "EFI_BUFFER_TOO_SMALL", 6: "EFI_NOT_READY", 7: "EFI_DEVICE_ERROR", 8: "EFI_WRITE_PROTECTED", 9: "EFI_OUT_OF_RESOURCES", 14: "EFI_NOT_FOUND", 26: "EFI_SECURITY_VIOLATION"}
         off = 0
         data = b''
         attr = 0
         buf = b''
         hdr = 0
-        base = 12
         namelen = len(name)
         header_size = 52
         data_size = header_size + namelen
@@ -484,7 +478,23 @@ class LinuxHelper(Helper):
         guid9 = int(guid[32:34], 16)
         guid10 = int(guid[34:], 16)
 
-        in_buf = struct.pack(f'13I{str(namelen)}s', data_size, guid0, guid1, guid2, guid3, guid4, guid5, guid6, guid7, guid8, guid9, guid10, namelen, name.encode())
+        in_buf = struct.pack(
+            f'13I{namelen}s',
+            data_size,
+            guid0,
+            guid1,
+            guid2,
+            guid3,
+            guid4,
+            guid5,
+            guid6,
+            guid7,
+            guid8,
+            guid9,
+            guid10,
+            namelen,
+            name.encode(),
+        )
         buffer = array.array("B", in_buf)
         stat = self.ioctl(IOCTL_GET_EFIVAR, buffer)
         new_size, status = struct.unpack("2I", buffer[:8])
@@ -508,11 +518,13 @@ class LinuxHelper(Helper):
 
         if (status > 0):
             if logger().DEBUG:
+                status_dict = {0: "EFI_SUCCESS", 1: "EFI_LOAD_ERROR", 2: "EFI_INVALID_PARAMETER", 3: "EFI_UNSUPPORTED", 4: "EFI_BAD_BUFFER_SIZE", 5: "EFI_BUFFER_TOO_SMALL", 6: "EFI_NOT_READY", 7: "EFI_DEVICE_ERROR", 8: "EFI_WRITE_PROTECTED", 9: "EFI_OUT_OF_RESOURCES", 14: "EFI_NOT_FOUND", 26: "EFI_SECURITY_VIOLATION"}
                 logger().log_error(f'Reading variable (GET_EFIVAR) did not succeed: {status_dict.get(status, "UNKNOWN")} ({status:d})')
             data = b''
             guid = ''
             attr = 0
         else:
+            base = 12
             data = buffer[base:base + new_size].tobytes()
             attr = struct.unpack("I", buffer[8:12])[0]
         return (off, buf, hdr, data, guid, attr)
@@ -537,7 +549,7 @@ class LinuxHelper(Helper):
             if logger().DEBUG:
                 logger().log_error('Failed to read /sys/firmware/efi/[vars|efivars]. Folder does not exist')
             return None
-        variables = dict()
+        variables = {}
         for v in varlist:
             name = v[:-37]
             guid = v[len(name) + 1:]
@@ -549,21 +561,6 @@ class LinuxHelper(Helper):
         return variables
 
     def kern_set_EFI_variable(self, name: str, guid: str, value: bytes, attr: int = 0x7) -> int:
-        status_dict = {
-            0: "EFI_SUCCESS",
-            1: "EFI_LOAD_ERROR",
-            2: "EFI_INVALID_PARAMETER",
-            3: "EFI_UNSUPPORTED",
-            4: "EFI_BAD_BUFFER_SIZE",
-            5: "EFI_BUFFER_TOO_SMALL",
-            6: "EFI_NOT_READY",
-            7: "EFI_DEVICE_ERROR",
-            8: "EFI_WRITE_PROTECTED",
-            9: "EFI_OUT_OF_RESOURCES",
-            14: "EFI_NOT_FOUND",
-            26: "EFI_SECURITY_VIOLATION"
-        }
-
         header_size = 60  # 4*15
         namelen = len(name)
         if value:
@@ -591,11 +588,25 @@ class LinuxHelper(Helper):
         self.ioctl(IOCTL_SET_EFIVAR, buffer)
         _, status = struct.unpack("2I", buffer[:8])
 
-        if (status != 0):
-            if logger().DEBUG:
-                logger().log_error(f"Setting EFI (SET_EFIVAR) variable did not succeed: '{status_dict.get(status, 'UNKNOWN')}' ({status:d})")
-        else:
+        if status == 0:
             os.system('umount /sys/firmware/efi/efivars; mount -t efivarfs efivarfs /sys/firmware/efi/efivars')
+        elif logger().DEBUG:
+            status_dict = {
+                0: "EFI_SUCCESS",
+                1: "EFI_LOAD_ERROR",
+                2: "EFI_INVALID_PARAMETER",
+                3: "EFI_UNSUPPORTED",
+                4: "EFI_BAD_BUFFER_SIZE",
+                5: "EFI_BUFFER_TOO_SMALL",
+                6: "EFI_NOT_READY",
+                7: "EFI_DEVICE_ERROR",
+                8: "EFI_WRITE_PROTECTED",
+                9: "EFI_OUT_OF_RESOURCES",
+                14: "EFI_NOT_FOUND",
+                26: "EFI_SECURITY_VIOLATION"
+            }
+
+            logger().log_error(f"Setting EFI (SET_EFIVAR) variable did not succeed: '{status_dict.get(status, 'UNKNOWN')}' ({status:d})")
         return status
 
 
@@ -614,8 +625,7 @@ class LinuxHelper(Helper):
         self.set_affinity(cpu_thread_id)
         in_buf = struct.pack(f'7{self._pack}', SMI_code_data, _rax, _rbx, _rcx, _rdx, _rsi, _rdi)
         out_buf = self.ioctl(IOCTL_SWSMI, in_buf)
-        ret = struct.unpack(f'7{self._pack}', out_buf)
-        return ret
+        return struct.unpack(f'7{self._pack}', out_buf)
 
     #
     # File system
@@ -628,18 +638,22 @@ class LinuxHelper(Helper):
     def get_page_is_ram(self) -> Optional[bytes]:
         PROC_KALLSYMS = "/proc/kallsyms"
         symarr = chipsec.file.read_file(PROC_KALLSYMS).splitlines()
-        for line in symarr:
-            if b"page_is_ram" in line:
-                return line.split(b" ")[0]
-        return None
+        return next(
+            (line.split(b" ")[0] for line in symarr if b"page_is_ram" in line),
+            None,
+        )
 
     def get_phys_mem_access_prot(self) -> Optional[bytes]:
         PROC_KALLSYMS = "/proc/kallsyms"
         symarr = chipsec.file.read_file(PROC_KALLSYMS).splitlines()
-        for line in symarr:
-            if b"phys_mem_access_prot" in line:
-                return line.split(b" ")[0]
-        return None
+        return next(
+            (
+                line.split(b" ")[0]
+                for line in symarr
+                if b"phys_mem_access_prot" in line
+            ),
+            None,
+        )
 
     #
     # Logical CPU count

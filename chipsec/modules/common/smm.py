@@ -63,10 +63,10 @@ class smm(BaseModule):
 
         self.cs.print_register('PCI0.0.0_SMRAMC', regval)
 
-        if 1 == g_smrame:
+        if g_smrame == 1:
             self.logger.log("[*] Compatible SMRAM is enabled")
             # When D_LCK is set HW clears D_OPEN so generally no need to check for D_OPEN but doesn't hurt double checking
-            if (1 == d_lock) and (0 == d_open):
+            if d_lock == 1 and d_open == 0:
                 res = ModuleResult.PASSED
                 self.logger.log_passed("Compatible SMRAM is locked down")
             else:

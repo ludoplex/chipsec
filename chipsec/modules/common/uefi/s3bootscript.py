@@ -102,9 +102,9 @@ class s3bootscript(BaseModule):
                 dispatchstr = "Dispatch opcode (off 0x{:04X}) with entry-point 0x{:016X}".format(e.offset_in_script, e.decoded_opcode.entrypoint)
                 if not self.is_inside_SMRAM(e.decoded_opcode.entrypoint) and not self.is_inside_SPI(e.decoded_opcode.entrypoint):
                     dispatch_ep_ok = False
-                    self.logger.log_bad(dispatchstr + " > UNPROTECTED")
+                    self.logger.log_bad(f"{dispatchstr} > UNPROTECTED")
                 else:
-                    self.logger.log_good(dispatchstr + " > PROTECTED")
+                    self.logger.log_good(f"{dispatchstr} > PROTECTED")
         self.logger.log("[*] Found {:d} Dispatch opcodes".format(n_dispatch))
         return dispatch_ep_ok
 
@@ -112,9 +112,7 @@ class s3bootscript(BaseModule):
         res = BOOTSCRIPT_OK
         self.logger.log("[*] Checking S3 boot-script at 0x{:016X}".format(bootscript_pa))
 
-        # Checking if it's in SMRAM
-        scriptInsideSMRAM = self.is_inside_SMRAM(bootscript_pa)
-        if scriptInsideSMRAM:
+        if scriptInsideSMRAM := self.is_inside_SMRAM(bootscript_pa):
             res |= BOOTSCRIPT_INSIDE_SMRAM
             self.logger.log_good('S3 boot-script is in SMRAM')
             self.logger.log_important("Note: the test could not verify Dispatch opcodes because the script is in SMRAM. Entry-points of Dispatch opcodes also need to be protected.")
@@ -125,8 +123,7 @@ class s3bootscript(BaseModule):
             script_all = self.cs.mem.read_physical_mem(bootscript_pa, 0x100000)
             self.logger.log('[*] Decoding S3 boot-script opcodes..')
             script_entries = parse_script(script_all, False)
-            dispatch_opcodes_ok = self.check_dispatch_opcodes(script_entries)
-            if dispatch_opcodes_ok:
+            if dispatch_opcodes_ok := self.check_dispatch_opcodes(script_entries):
                 res |= DISPATCH_OPCODES_PROTECTED
                 self.logger.log_important("S3 boot-script is not in protected memory but didn't find unprotected Dispatch entry-points")
             else:
@@ -150,27 +147,25 @@ class s3bootscript(BaseModule):
             self.logger.log_important('Found {:d} S3 boot-script(s) in EFI variables'.format(len(bootscript_PAs)))
 
         for bootscript_pa in bootscript_PAs:
-            if 0 == bootscript_pa:
+            if bootscript_pa == 0:
                 continue
             res |= self.check_s3_bootscript(bootscript_pa)
 
         self.logger.log('')
 
-        if (res & BOOTSCRIPT_OUTSIDE_SMRAM) != 0:
-            # BOOTSCRIPT_OUTSIDE_SMRAM
-            if (res & DISPATCH_OPCODES_UNPROTECTED) != 0:
-                # DISPATCH_OPCODES_UNPROTECTED
-                status = ModuleResult.FAILED
-                self.logger.log_failed('S3 Boot-Script and Dispatch entry-points do not appear to be protected')
-            else:
-                # DISPATCH_OPCODES_PROTECTED
-                status = ModuleResult.WARNING
-                self.logger.log_warning('S3 Boot-Script is not in SMRAM but Dispatch entry-points appear to be protected. Recommend further testing')
-        else:
+        if res & BOOTSCRIPT_OUTSIDE_SMRAM == 0:
             # BOOTSCRIPT_INSIDE_SMRAM
             status = ModuleResult.WARNING
             self.logger.log_warning("S3 Boot-Script is inside SMRAM. The script is protected but Dispatch opcodes cannot be inspected")
 
+        elif (res & DISPATCH_OPCODES_UNPROTECTED) != 0:
+            # DISPATCH_OPCODES_UNPROTECTED
+            status = ModuleResult.FAILED
+            self.logger.log_failed('S3 Boot-Script and Dispatch entry-points do not appear to be protected')
+        else:
+            # DISPATCH_OPCODES_PROTECTED
+            status = ModuleResult.WARNING
+            self.logger.log_warning('S3 Boot-Script is not in SMRAM but Dispatch entry-points appear to be protected. Recommend further testing')
         self.logger.log_important("Additional testing of the S3 boot-script can be done using tools.uefi.s3script_modify")
 
         return status

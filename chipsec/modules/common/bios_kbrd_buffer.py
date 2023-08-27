@@ -57,18 +57,12 @@ class bios_kbrd_buffer(BaseModule):
         print_buffer_bytes(bios_kbrd_buf)
         bios_kbrd_buf = bios_kbrd_buf.decode('latin_1')
 
-        has_contents = False
-
         if COMMON_FILL_PTRN == bios_kbrd_buf:
             self.logger.log_good("Keyboard buffer is filled with common fill pattern")
             return ModuleResult.PASSED
 
-        for x in bios_kbrd_buf:
-            if ("\x00" != x) and ("\x20" != x):
-                has_contents = True
-                break
-
-        if (0x1E < kbrd_buf_tail) and (kbrd_buf_tail <= 0x1E + 32):
+        has_contents = any(x not in ["\x00", "\x20"] for x in bios_kbrd_buf)
+        if 0x1E < kbrd_buf_tail <= 0x1E + 32:
             self.logger.log_bad("Keyboard buffer tail points inside the buffer (= 0x{:X})".format(kbrd_buf_tail))
             self.logger.log("    It may potentially expose lengths of pre-boot passwords. Was your password {:d} characters long?".format((kbrd_buf_tail + 2 - 0x1E) // 2))
 

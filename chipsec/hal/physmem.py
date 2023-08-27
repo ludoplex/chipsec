@@ -123,7 +123,7 @@ class Memory(HALBase):
     def free_physical_mem(self, pa: int) -> bool:
         ret = self.helper.free_phys_mem(pa)
         self.logger.log_hal(f'[mem] Deallocated : PA = 0x{pa:016X}')
-        return True if ret == 1 else False
+        return ret == 1
 
     def set_mem_bit(self, addr: int, bit: int) -> int:
         addr += bit >> 3

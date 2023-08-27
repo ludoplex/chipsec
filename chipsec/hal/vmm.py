@@ -129,11 +129,11 @@ VIRTIO_DEVICES: Dict[int, str] = {
 
 
 def get_virtio_devices(devices: List[Tuple[int, int, int, int, int]]) -> List[Tuple[int, int, int, int, int]]:
-    virtio_devices = []
-    for (b, d, f, vid, did) in devices:
-        if vid in VIRTIO_VENDORS:
-            virtio_devices.append((b, d, f, vid, did))
-    return virtio_devices
+    return [
+        (b, d, f, vid, did)
+        for b, d, f, vid, did in devices
+        if vid in VIRTIO_VENDORS
+    ]
 
 
 class VirtIO_Device:

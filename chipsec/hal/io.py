@@ -50,8 +50,7 @@ class PortIO:
     def _write_port(self, io_port: int, value: int, size: int) -> int:
         if logger().HAL:
             logger().log(f"[io] OUT 0x{io_port:04X}: value = 0x{value:08X}, size = 0x{size:02X}")
-        status = self.helper.write_io_port(io_port, value, size)
-        return status
+        return self.helper.write_io_port(io_port, value, size)
 
     def read_port_dword(self, io_port: int) -> int:
         value = self.helper.read_io_port(io_port, 4)
@@ -94,10 +93,7 @@ class PortIO:
     #
     def read_IO(self, range_base: int, range_size: int, size: int = 1) -> List[int]:
         n = range_size // size
-        io_ports = []
-        for i in range(n):
-            io_ports.append(self._read_port(range_base + i * size, size))
-        return io_ports
+        return [self._read_port(range_base + i * size, size) for i in range(n)]
 
     #
     # Dump I/O range

@@ -187,7 +187,7 @@ class spectre_v2(BaseModule):
 
                 ibrs_all = self.cs.get_register_field('IA32_ARCH_CAPABILITIES', arch_cap_msr, 'IBRS_ALL')
                 self.logger.log("[*]   cpu{:d}: IBRS_ALL = {:x}".format(tid, ibrs_all))
-                if 0 == ibrs_all:
+                if ibrs_all == 0:
                     ibrs_enh_supported = False
                     break
 
@@ -200,9 +200,9 @@ class spectre_v2(BaseModule):
             self.logger.log_bad("CPU doesn't support enhanced IBRS")
 
         ibrs_enabled = True
-        stibp_enabled_count = 0
         if ibrs_enh_supported:
             self.logger.log("[*] Checking if OS is using Enhanced IBRS...")
+            stibp_enabled_count = 0
             for tid in range(cpu_thread_count):
                 spec_ctrl_msr = 0
                 try:
@@ -214,13 +214,13 @@ class spectre_v2(BaseModule):
 
                 ibrs = self.cs.get_register_field('IA32_SPEC_CTRL', spec_ctrl_msr, 'IBRS')
                 self.logger.log("[*]   cpu{:d}: IA32_SPEC_CTRL[IBRS] = {:x}".format(tid, ibrs))
-                if 0 == ibrs:
+                if ibrs == 0:
                     ibrs_enabled = False
 
                 # ok to access STIBP bit even if STIBP is not supported
                 stibp = self.cs.get_register_field('IA32_SPEC_CTRL', spec_ctrl_msr, 'STIBP')
                 self.logger.log("[*]   cpu{:d}: IA32_SPEC_CTRL[STIBP] = {:x}".format(tid, stibp))
-                if 1 == stibp:
+                if stibp == 1:
                     stibp_enabled_count += 1
 
             if ibrs_enabled:
@@ -256,17 +256,16 @@ class spectre_v2(BaseModule):
         elif not ibrs_enh_supported:
             res = ModuleResult.WARNING
             self.logger.log_warning("CPU supports mitigation (IBRS) but doesn't support enhanced IBRS")
-        elif ibrs_enh_supported and (not ibrs_enabled):
+        elif not ibrs_enabled:
             res = ModuleResult.WARNING
             self.logger.log_warning("CPU supports mitigation (enhanced IBRS) but OS is not using it")
-        else:
-            if not stibp_supported:
-                res = ModuleResult.WARNING
-                self.logger.log_warning("CPU supports mitigation (enhanced IBRS) but STIBP is not supported")
-            else:
-                res = ModuleResult.PASSED
-                self.logger.log_passed("CPU and OS support hardware mitigations")
+        elif stibp_supported:
+            res = ModuleResult.PASSED
+            self.logger.log_passed("CPU and OS support hardware mitigations")
 
+        else:
+            res = ModuleResult.WARNING
+            self.logger.log_warning("CPU supports mitigation (enhanced IBRS) but STIBP is not supported")
         self.logger.log_important("OS may be using software based mitigation (eg. retpoline)")
         try:
             if self.cs.helper.retpoline_enabled():

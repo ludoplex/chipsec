@@ -85,14 +85,14 @@ class EC(hal_base.HALBase):
     def _wait_ec_inbuf_empty(self) -> bool:
         to = 1000
         while (self.cs.io.read_port_byte(IO_PORT_EC_STATUS) & EC_STS_IBF) and to:
-            to = to - 1
+            to -= 1
         return True
 
     # Wait for EC output buffer full
     def _wait_ec_outbuf_full(self) -> bool:
         to = 1000
         while not (self.cs.io.read_port_byte(IO_PORT_EC_STATUS) & EC_STS_OBF) and to:
-            to = to - 1
+            to -= 1
         return True
 
     def write_command(self, command: int) -> None:
@@ -139,17 +139,12 @@ class EC(hal_base.HALBase):
         for i in range(size):
             if start_offset + i < 0x100:
                 mem_value = self.read_memory(start_offset + i)
-                if mem_value is not None:
-                    buffer[i] = mem_value
-                else:
-                    self.logger.log_hal(f'[ec] Unable to read EC offset 0x{start_offset + i:X}')
             else:
                 mem_value = self.read_memory_extended(start_offset + i)
-                if mem_value is not None:
-                    buffer[i] = mem_value
-                else:
-                    self.logger.log_hal(f'[ec] Unable to read EC offset 0x{start_offset + i:X}')
-
+            if mem_value is not None:
+                buffer[i] = mem_value
+            else:
+                self.logger.log_hal(f'[ec] Unable to read EC offset 0x{start_offset + i:X}')
         self.logger.log_hal(f'[ec] read EC memory from offset {start_offset:X} size {size:X}:')
         if self.logger.HAL:
             print_buffer_bytes(buffer)

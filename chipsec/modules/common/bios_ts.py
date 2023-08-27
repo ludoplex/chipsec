@@ -63,7 +63,11 @@ class bios_ts(BaseModule):
                 self.logger.log_verbose('TopSwapStatus read returned all 0xFs.')
             else:
                 tss = self.cs.get_control('TopSwapStatus')
-                self.logger.log("[*] BIOS Top Swap mode is {} (TSS = {:d})".format('enabled' if (1 == tss) else 'disabled', tss))
+                self.logger.log(
+                    "[*] BIOS Top Swap mode is {} (TSS = {:d})".format(
+                        'enabled' if tss == 1 else 'disabled', tss
+                    )
+                )
 
         if self.cs.is_control_defined('TopSwap'):
             if self.cs.is_control_all_ffs('TopSwap'):
